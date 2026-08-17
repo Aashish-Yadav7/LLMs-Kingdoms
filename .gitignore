@@ -4,4 +4,4 @@ __pycache__/
 .env
 data/save_*.json
 logs/turn_*.md
-.env
+
