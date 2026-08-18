@@ -81,7 +81,10 @@ def main():
         print(f"  log   -> logs/turn_{game_state.turn}.md")
         print(f"  map   -> maps/turn_{game_state.turn}.html (also maps/latest.html)\n")
 
-    print("=== Done. Open maps/latest.html in a browser to see the god view. ===")
+    print("=== Done. Opening maps/latest.html in your browser... ===")
+    import webbrowser
+    from pathlib import Path as _Path
+    webbrowser.open(_Path("maps/latest.html").resolve().as_uri())
 
 
 if __name__ == "__main__":
