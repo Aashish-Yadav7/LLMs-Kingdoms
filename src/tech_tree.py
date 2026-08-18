@@ -90,6 +90,10 @@ TECH_TREE = {
         "cost": 120_000_000_000, "research_turns": 2, "prereqs": ["combustion_engines"],
         "unlocks": ["+15% tax income (better roads/ports/logistics move goods and troops faster)"],
     },
+    "petrochemical_refining": {
+        "cost": 180_000_000_000, "research_turns": 2, "prereqs": ["basic_industry"],
+        "unlocks": ["+10% tax income (refineries turn raw oil/gas into higher-value fuel and materials)"],
+    },
 }
 
 # NOTE: nuclear weapons are deliberately absent from this tree. If you want a
