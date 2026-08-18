@@ -66,6 +66,28 @@ Get a free OpenRouter key at https://openrouter.ai/keys — no card required for
 per model, more once you add a small credit balance), which is fine for a
 turn-based game where each kingdom acts a handful of times per turn.
 
+## Setting up your own LLM (player_llm / south pole kingdom) via Ollama
+
+Ollama runs models entirely on your own machine -- free, no API key, no rate
+limits, but needs enough RAM/GPU for whatever model you pick.
+
+1. Install Ollama: https://ollama.com/download (Windows/Mac/Linux all supported)
+2. Pull a model, e.g.:
+   ```bash
+   ollama pull llama3.1
+   ```
+3. Ollama runs a local server automatically after install (default
+   `http://localhost:11434`). Nothing else to configure -- `config.py`
+   already points `player_llm` at `"ollama/llama3.1"`.
+4. Swap `llama3.1` for any model Ollama supports (`ollama pull mistral`,
+   `ollama pull qwen2.5`, etc.) by changing the model string in
+   `src/config.py` to match.
+
+If your machine can't run a good local model well, swap `player_llm`'s model
+in `config.py` to `"groq/llama-3.3-70b-versatile"` instead (free tier, runs
+on Groq's servers, much faster than most local setups) -- get a free key at
+https://console.groq.com/keys and put it in `.env` as `GROQ_API_KEY`.
+
 ## Assigning models to kingdoms
 
 Edit `src/config.py`:
