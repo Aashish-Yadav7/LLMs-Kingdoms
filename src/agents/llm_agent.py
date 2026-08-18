@@ -1,9 +1,16 @@
 """
 One agent class for every kingdom, regardless of which model plays it.
-Uses OpenRouter's OpenAI-compatible endpoint so Claude, GPT, Gemini, Grok,
-DeepSeek, Kimi, Qwen, GLM, or your own hosted model are all reachable the
-same way -- just a different `model` string and possibly a different
-base_url/api_key for a custom-hosted model.
+Routes to the right provider based on a prefix on the model string:
+
+    "ollama/llama3.1"        -> local Ollama, no API key, runs on your machine, fully free
+    "groq/llama-3.3-70b"     -> Groq's free tier, very fast, needs GROQ_API_KEY
+    "custom/your-model-id"   -> any OpenAI-compatible endpoint you host yourself
+    anything else            -> OpenRouter (Claude, GPT, Gemini, Grok, DeepSeek,
+                                 Kimi, Qwen, GLM, etc, including OpenRouter's
+                                 own free-tier routes)
+
+All of these speak the same OpenAI-compatible chat completions API, so one
+agent class handles every provider -- just change the model string.
 """
 
 import json
@@ -15,6 +22,27 @@ from openai import OpenAI
 
 from src.agents.base_agent import BaseAgent
 
+PROVIDER_PREFIXES = {
+    "ollama/": {
+        "base_url_env": "OLLAMA_BASE_URL",
+        "default_base_url": "http://localhost:11434/v1",
+        "api_key_env": None,          # Ollama doesn't check the key at all
+        "default_api_key": "ollama",  # OpenAI client requires a non-empty string regardless
+    },
+    "groq/": {
+        "base_url_env": "GROQ_BASE_URL",
+        "default_base_url": "https://api.groq.com/openai/v1",
+        "api_key_env": "GROQ_API_KEY",
+        "default_api_key": None,
+    },
+    "custom/": {
+        "base_url_env": "CUSTOM_MODEL_BASE_URL",
+        "default_base_url": None,
+        "api_key_env": "CUSTOM_MODEL_API_KEY",
+        "default_api_key": "not-needed",
+    },
+}
+
 
 class LLMAgent(BaseAgent):
     def __init__(self, model: str, kingdom_name: str, personality: str):
@@ -22,10 +50,21 @@ class LLMAgent(BaseAgent):
         self.kingdom_name = kingdom_name
         self.personality = personality
 
-        if model.startswith("custom/"):
-            base_url = os.environ.get("CUSTOM_MODEL_BASE_URL")
-            api_key = os.environ.get("CUSTOM_MODEL_API_KEY", "not-needed")
-            self.model_id = model.removeprefix("custom/")
+        provider = next((p for prefix, p in PROVIDER_PREFIXES.items() if model.startswith(prefix)), None)
+
+        if provider:
+            prefix = next(pfx for pfx in PROVIDER_PREFIXES if model.startswith(pfx))
+            self.model_id = model.removeprefix(prefix)
+            base_url = os.environ.get(provider["base_url_env"], provider["default_base_url"])
+            api_key = (
+                os.environ.get(provider["api_key_env"], provider["default_api_key"])
+                if provider["api_key_env"] else provider["default_api_key"]
+            )
+            if not base_url:
+                raise RuntimeError(
+                    f"No base URL configured for {kingdom_name} ({model}). "
+                    f"Set {provider['base_url_env']} in .env"
+                )
         else:
             base_url = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
             api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -34,7 +73,7 @@ class LLMAgent(BaseAgent):
         if not api_key:
             raise RuntimeError(
                 f"No API key found for {kingdom_name} ({model}). "
-                f"Set OPENROUTER_API_KEY (or CUSTOM_MODEL_API_KEY) in .env"
+                f"Check the matching *_API_KEY variable in .env"
             )
 
         self.client = OpenAI(base_url=base_url, api_key=api_key)
