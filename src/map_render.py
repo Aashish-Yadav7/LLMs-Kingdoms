@@ -41,9 +41,10 @@ CONTINENT_HOTSPOTS = {
 }
 
 UNIT_LABELS = {
-    "infantry": "INF", "artillery": "ART", "armored_vehicle": "ARM",
-    "main_battle_tank": "MBT", "rocket_artillery": "RKT", "fighter_jet": "JET",
-    "guided_missile": "GMS", "destroyer": "DES",
+    "infantry": "Infantry", "artillery": "Artillery", "armored_vehicle": "Armored Vehicle",
+    "main_battle_tank": "Main Battle Tank", "rocket_artillery": "Rocket Artillery",
+    "fighter_jet": "Fighter Jet", "guided_missile": "Guided Missile", "destroyer": "Destroyer",
+    "aircraft_carrier": "Aircraft Carrier", "aerial_fortress": "Aerial Fortress",
 }
 
 
@@ -68,8 +69,21 @@ def render_map_html(game_state) -> str:
             provinces.append({
                 "name": prov["name"],
                 "terrain": prov["terrain"].replace("_", " ").title(),
-                "units": {UNIT_LABELS.get(u, u): c for u, c in units_here.items() if c > 0},
+                "units": {u: c for u, c in units_here.items() if c > 0},
             })
+        # Infrastructure shown visually is derived from actually-unlocked
+        # tech, not decoration -- if you don't have the tech, you don't get
+        # the icon.
+        infrastructure = []
+        if "combustion_engines" in k.unlocked_tech:
+            infrastructure.append("motor_transport")
+        if "transport_infrastructure" in k.unlocked_tech:
+            infrastructure.append("rail_network")
+        if "jet_propulsion" in k.unlocked_tech or "aircraft_carrier_program" in k.unlocked_tech:
+            infrastructure.append("airport")
+        if "petrochemical_refining" in k.unlocked_tech:
+            infrastructure.append("refinery")
+
         kingdom_data[kid] = {
             "name": k.name,
             "continent": cont["display_name"],
@@ -77,10 +91,20 @@ def render_map_html(game_state) -> str:
             "treasury": f"${k.treasury:,.0f}",
             "population": f"{k.population:,}",
             "tax_rate": f"{k.tax_rate:.0%}",
+            "stability": f"{k.stability:.0f}/100",
             "total_resources": f"{sum(k.resources.values()):,}",
             "resources": k.resources,
             "unlocked_tech": sorted(k.unlocked_tech),
+            "infrastructure": infrastructure,
             "researching": k.researching or "(none)",
+            "custom_researching": (
+                f"{k.custom_researching['name']} ({k.custom_researching['progress']:.1f}/{k.custom_researching['turns_needed']} turns)"
+                if k.custom_researching else "(none)"
+            ),
+            "custom_projects": [
+                f"{p['name']} -- power {p['power_rating']:,.0f} ({p['description']})"
+                for p in k.custom_projects
+            ] or ["(none yet)"],
             "alliances": k.alliances or ["(none)"],
             "at_war_with": k.at_war_with or ["(none)"],
             "provinces": provinces,
@@ -164,7 +188,14 @@ def render_map_html(game_state) -> str:
   .province-card {{ background:#0f172a; border:1px solid #334155; border-radius:6px; padding:8px; margin-top:8px; }}
   .province-card .pname {{ font-weight:600; font-size:13px; }}
   .province-card .pterrain {{ color:#94a3b8; font-size:11px; }}
-  .unit-badge {{ display:inline-block; background:#334155; border-radius:4px; padding:2px 6px; font-size:11px; margin:3px 3px 0 0; }}
+  .unit-badge {{ display:inline-flex; align-items:center; gap:4px; background:#334155; border-radius:4px; padding:3px 7px 3px 4px; font-size:11px; margin:3px 3px 0 0; }}
+  .unit-icon {{ width:18px; height:18px; flex-shrink:0; }}
+  .unit-icon.ground {{ animation: march 0.9s steps(2) infinite; }}
+  .unit-icon.air {{ animation: fly 2.2s ease-in-out infinite; }}
+  .unit-icon.naval {{ animation: bob 2.6s ease-in-out infinite; }}
+  @keyframes march {{ 0%,100% {{ transform: translateY(0); }} 50% {{ transform: translateY(-1.5px); }} }}
+  @keyframes fly {{ 0%,100% {{ transform: translateX(0) translateY(0); }} 50% {{ transform: translateX(2px) translateY(-2px); }} }}
+  @keyframes bob {{ 0%,100% {{ transform: translateY(0) rotate(0deg); }} 50% {{ transform: translateY(-1.5px) rotate(-1deg); }} }}
   .empty {{ color:#64748b; font-style:italic; font-size:13px; }}
   .resource-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:4px; font-size:12px; margin-top:6px; }}
 
@@ -209,11 +240,90 @@ def render_map_html(game_state) -> str:
   <script>
     const KINGDOM_DATA = {kingdom_json};
 
+    // Compact inline SVG icons per unit type -- no emoji (some Windows font
+    // builds are missing glyphs for newer emoji and render tofu boxes
+    // instead), pure vector so it looks identical on every machine, and
+    // cheap to animate via CSS classes (ground/air/naval).
+    const UNIT_ICONS = {{
+      infantry: {{ cls: "ground", label: "Infantry", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2.4"/>
+        <path d="M12 8c-2.2 0-4 1.8-4 4v3h2v7h4v-7h2v-3c0-2.2-1.8-4-4-4z"/></svg>` }},
+      artillery: {{ cls: "ground", label: "Artillery", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="15" width="18" height="4" rx="1"/>
+        <rect x="9" y="6" width="10" height="4" rx="1" transform="rotate(-20 9 6)"/>
+        <circle cx="7" cy="19" r="2.5"/><circle cx="17" cy="19" r="2.5"/></svg>` }},
+      armored_vehicle: {{ cls: "ground", label: "Armored Vehicle", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="9" width="18" height="8" rx="2"/>
+        <rect x="8" y="5" width="6" height="5" rx="1"/>
+        <circle cx="7" cy="18" r="2"/><circle cx="12" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>` }},
+      main_battle_tank: {{ cls: "ground", label: "Main Battle Tank", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="14" width="20" height="4" rx="2"/>
+        <rect x="6" y="8" width="10" height="6" rx="1"/><rect x="13" y="6" width="9" height="2" rx="1"/>
+        <circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg>` }},
+      rocket_artillery: {{ cls: "ground", label: "Rocket Artillery", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="13" width="14" height="5" rx="1"/>
+        <rect x="6" y="5" width="2.5" height="8" rx="1" transform="rotate(-15 7 9)"/>
+        <rect x="10" y="5" width="2.5" height="8" rx="1" transform="rotate(-15 11 9)"/>
+        <circle cx="6" cy="19" r="2"/><circle cx="15" cy="19" r="2"/></svg>` }},
+      fighter_jet: {{ cls: "air", label: "Fighter Jet", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 6 8 3-8 1v4l4 3-4-1-2 4-2-4-4 1 4-3v-4l-8-1 8-3z"/></svg>` }},
+      guided_missile: {{ cls: "air", label: "Guided Missile", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c2 3 3 6 3 10v6l-3 3-3-3v-6c0-4 1-7 3-10z"/>
+        <path d="M9 14l-4 2 4 1z"/><path d="M15 14l4 2-4 1z"/></svg>` }},
+      destroyer: {{ cls: "naval", label: "Destroyer", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 16l2 3h16l2-3-3-2H5z"/>
+        <rect x="9" y="7" width="6" height="6" rx="1"/><rect x="11" y="4" width="1.5" height="4"/></svg>` }},
+      aircraft_carrier: {{ cls: "naval", label: "Aircraft Carrier", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 16l2 3h18l2-3-3-2H4z"/>
+        <rect x="3" y="12.5" width="18" height="1.5"/>
+        <rect x="15" y="6" width="5" height="4" rx="1"/><rect x="17" y="3" width="1.5" height="3.5"/></svg>` }},
+      aerial_fortress: {{ cls: "air", label: "Aerial Fortress", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="9" width="20" height="6" rx="2"/>
+        <circle cx="5" cy="7" r="1.6"/><circle cx="10" cy="6" r="1.6"/>
+        <circle cx="14" cy="6" r="1.6"/><circle cx="19" cy="7" r="1.6"/></svg>` }},
+    }};
+
+    // Infrastructure icons -- tied to real unlocked tech (see "infrastructure"
+    // field on each kingdom, computed in map_render.py from unlocked_tech),
+    // not just decoration.
+    const INFRA_ICONS = {{
+      motor_transport: {{ cls: "ground", label: "Motor Transport Network", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="11" width="18" height="5" rx="2"/>
+        <rect x="6" y="7" width="8" height="5" rx="1"/>
+        <circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>` }},
+      rail_network: {{ cls: "ground", label: "Rail Logistics Network", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="5" width="16" height="10" rx="2"/>
+        <rect x="6" y="8" width="5" height="4"/><rect x="13" y="8" width="5" height="4"/>
+        <circle cx="7" cy="18" r="1.5"/><circle cx="11" cy="18" r="1.5"/>
+        <circle cx="15" cy="18" r="1.5"/><circle cx="19" cy="18" r="1.5"/></svg>` }},
+      airport: {{ cls: "air", label: "Air Transit Hub", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 14l9-2V4l2-1 2 1v8l9 2v2l-9-1.5V19l3 2v1l-5-1-5 1v-1l3-2v-4.5L2 16z"/></svg>` }},
+      refinery: {{ cls: "ground", label: "Petrochemical Refinery", svg: `
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="14" width="18" height="6" rx="1"/>
+        <rect x="6" y="9" width="2.5" height="5"/><rect x="11" y="6" width="2.5" height="8"/>
+        <rect x="16" y="10" width="2.5" height="4"/><circle cx="7.25" cy="8" r="1.3"/></svg>` }},
+    }};
+
+    function renderInfraRow(key) {{
+      const meta = INFRA_ICONS[key];
+      if (!meta) return '';
+      return `<span class="unit-badge">
+                <span class="unit-icon ${{meta.cls}}">${{meta.svg}}</span>
+                ${{meta.label}}
+              </span>`;
+    }}
+
     function showKingdom(kid) {{
       const d = KINGDOM_DATA[kid];
       let provincesHtml = d.provinces.map(p => {{
         let unitsHtml = Object.keys(p.units).length
-          ? Object.entries(p.units).map(([u,c]) => `<span class="unit-badge">${{u}} x${{c}}</span>`).join('')
+          ? Object.entries(p.units).map(([u,c]) => {{
+              const meta = UNIT_ICONS[u] || {{ cls: "ground", label: u, svg: '' }};
+              return `<span class="unit-badge">
+                        <span class="unit-icon ${{meta.cls}}" style="color:${{d.color}}">${{meta.svg}}</span>
+                        ${{meta.label}} x${{c}}
+                      </span>`;
+            }}).join('')
           : '<span class="empty">no units stationed</span>';
         return `<div class="province-card">
                   <div class="pname">${{p.name}}</div>
@@ -232,10 +342,16 @@ def render_map_html(game_state) -> str:
         <div class="stat-row"><span class="stat-label">Treasury</span><span>${{d.treasury}}</span></div>
         <div class="stat-row"><span class="stat-label">Population</span><span>${{d.population}}</span></div>
         <div class="stat-row"><span class="stat-label">Tax rate</span><span>${{d.tax_rate}}</span></div>
+        <div class="stat-row"><span class="stat-label">Stability</span><span>${{d.stability}}</span></div>
         <div class="stat-row"><span class="stat-label">Total resources</span><span>${{d.total_resources}}</span></div>
         <div class="stat-row"><span class="stat-label">Researching</span><span>${{d.researching}}</span></div>
+        <div class="stat-row"><span class="stat-label">Custom project in progress</span><span>${{d.custom_researching}}</span></div>
         <div class="stat-row"><span class="stat-label">Tech unlocked</span><span>${{d.unlocked_tech.length}}</span></div>
         <div class="stat-row"><span class="stat-label">At war with</span><span>${{d.at_war_with.join(', ')}}</span></div>
+        <h3 style="margin-top:16px; margin-bottom:4px;">Completed Custom Inventions</h3>
+        <div style="font-size:12px;">${{d.custom_projects.map(p => `<div style="padding:4px 0;border-bottom:1px solid #334155;">${{p}}</div>`).join('')}}</div>
+        <h3 style="margin-top:16px; margin-bottom:4px;">Infrastructure</h3>
+        <div>${{d.infrastructure.length ? d.infrastructure.map(renderInfraRow).join('') : '<span class="empty">no infrastructure tech unlocked yet</span>'}}</div>
         <h3 style="margin-top:16px; margin-bottom:4px;">Resources</h3>
         <div class="resource-grid">${{resourcesHtml}}</div>
         <h3 style="margin-top:16px; margin-bottom:4px;">Provinces & Deployed Units</h3>

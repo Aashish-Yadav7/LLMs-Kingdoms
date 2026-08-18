@@ -7,7 +7,7 @@ trusted blindly -- everything with a cost is checked against treasury/tech.
 
 from pathlib import Path
 
-from src.economy import run_economy_tick, research_tick
+from src.economy import run_economy_tick, research_tick, apply_repair_investment
 from src.military import UNIT_TYPES, can_build_unit, resolve_combat
 from src.tech_tree import TECH_TREE, can_research, get_available_techs
 from src.diplomacy import run_conference, run_secret_meetings
@@ -35,11 +35,19 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
             f"- **{kingdom.name}**: treasury ${summary['treasury_after']:,.0f}, "
             f"pop {summary['population_after']:,}, "
             f"tax income ${summary['tax_income']:,.0f}, "
-            f"upkeep ${summary['upkeep_cost']:,.0f}"
-            + (" — ⚠️ FOOD SHORTAGE" if summary["starving"] else "")
+            f"upkeep ${summary['upkeep_cost']:,.0f}, "
+            f"stability {summary['stability_after']}/100"
+            + (" -- FOOD SHORTAGE" if summary["starving"] else "")
         )
         if research_summary["status"] == "completed":
             log_lines.append(f"  - Research complete: **{research_summary['tech']}**")
+        if summary["riot"]:
+            r = summary["riot"]
+            log_lines.append(
+                f"  - **RIOT** (tax rate too high for too long): lost {r['population_lost']:,} population, "
+                f"${r['treasury_damage']:,.0f} in property/infrastructure damage, "
+                f"units lost: {r['units_lost'] or 'none'}"
+            )
 
     # 2. Private planning: each kingdom decides its economic/military/research
     #    action, plus who (if anyone) it wants a secret meeting with.
@@ -54,23 +62,35 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
 
         prompt = (
             f"Turn {game_state.turn}. Your private state:\n{kingdom.private_summary()}\n\n"
+            f"Your current stability: {kingdom.stability}/100. Tax rates above 30% erode stability "
+            "over time; if it collapses you WILL get a riot (population loss, treasury damage, "
+            "military losses). You can spend money via 'repair_investment' to actively restore "
+            "stability instead of waiting.\n\n"
             f"Other kingdoms (info available to you):\n{others}\n\n"
             f"Techs you could start researching now: {available_techs}\n"
             f"Unit types you can currently build: {buildable_units}\n"
             f"Unit costs/upkeep reference: { {u: {'cost': d['cost'], 'upkeep': d['upkeep']} for u, d in UNIT_TYPES.items()} }\n"
             f"Your provinces (for troop movement): {own_provinces}\n"
-            f"Current unit deployment by province: {kingdom.unit_positions}\n\n"
+            f"Current unit deployment by province: {kingdom.unit_positions}\n"
+            f"Your custom project in progress: {kingdom.custom_researching or 'none'}\n"
+            f"Your completed custom projects: {[p['name'] for p in kingdom.custom_projects]}\n\n"
             "Decide this turn's action. You may set your tax rate (0.10-0.45), "
             "start researching one tech (or continue current research), "
             "build units (limited by treasury; new units appear at your capital "
             f"province '{own_provinces[0]}'), move existing units between your own "
-            "provinces, and/or request a secret meeting with one other kingdom by id. "
+            "provinces, invest money to repair stability, propose your OWN custom "
+            "project (a named invention with a cost and turn count you set -- must "
+            "cost at least $500B and take 1-15 turns, engine will validate affordability), "
+            "and/or request a secret meeting with one other kingdom by id. "
             "You may also declare an attack on another kingdom if you're prepared to."
         )
         schema = (
             '{"tax_rate": 0.0-1.0, "research": "tech_id or null", '
             '"build_units": {"unit_type": count, ...}, '
             '"move_units": {"from": "province_id", "to": "province_id", "unit_type": "string", "count": int} or null, '
+            '"repair_investment": number or null, '
+            '"custom_project": {"name": "string", "description": "string", "category": "string", '
+            '"proposed_cost": number, "proposed_turns": int} or null, '
             '"secret_meeting_request": "kingdom_id or null", '
             '"declare_war_on": "kingdom_id or null", '
             '"reasoning": "short private reasoning, 1-2 sentences"}'
@@ -114,12 +134,18 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
             except (TypeError, ValueError):
                 pass
 
-        # research
+        # research -- FIX: cost was never actually being deducted before, only
+        # turns were tracked. Now validated against treasury like any other spend.
         tech_choice = decision.get("research")
         if tech_choice and not kingdom.researching and can_research(tech_choice, kingdom.unlocked_tech):
-            kingdom.researching = tech_choice
-            kingdom.research_progress = 0
-            applied.append(f"started researching {tech_choice}")
+            tech_cost = TECH_TREE[tech_choice]["cost"]
+            if kingdom.treasury >= tech_cost:
+                kingdom.treasury -= tech_cost
+                kingdom.researching = tech_choice
+                kingdom.research_progress = 0
+                applied.append(f"started researching {tech_choice} (-${tech_cost:,.0f})")
+            else:
+                applied.append(f"(wanted to research {tech_choice} but couldn't afford ${tech_cost:,.0f})")
 
         # unit builds -- validated against treasury and tech, one unit type at a time,
         # rejecting/partial-filling anything unaffordable rather than trusting the AI's math
@@ -168,6 +194,73 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
                     kingdom.unit_positions[dst].get(unit_type, 0) + move_count
                 )
                 applied.append(f"moved {move_count}x {unit_type} from {src} to {dst}")
+
+        # repair investment -- spend money to actively recover stability
+        # after unrest/riots instead of just waiting on natural recovery
+        repair_amount = decision.get("repair_investment")
+        if repair_amount:
+            try:
+                repair_amount = float(repair_amount)
+            except (TypeError, ValueError):
+                repair_amount = 0
+            if repair_amount > 0:
+                result = apply_repair_investment(kingdom, repair_amount)
+                if result["spent"] > 0:
+                    applied.append(
+                        f"invested ${result['spent']:,.0f} in stability "
+                        f"(+{result['stability_gained']} stability)"
+                    )
+
+        # custom/fictional project proposal -- a kingdom can propose its own
+        # named invention instead of picking from the fixed tech tree (e.g.
+        # a bespoke weapon or transport project). The AI proposes name/cost/
+        # turns; the engine only validates affordability and sane bounds --
+        # it never trusts the AI's own claims about what the invention DOES,
+        # so power_rating is always derived mechanically from cost, not from
+        # whatever the AI claims in its description.
+        custom = decision.get("custom_project")
+        if custom and isinstance(custom, dict) and not kingdom.custom_researching:
+            name = str(custom.get("name", "")).strip()[:80]
+            description = str(custom.get("description", "")).strip()[:300]
+            category = str(custom.get("category", "military")).strip()[:30]
+            try:
+                proposed_cost = float(custom.get("proposed_cost", 0))
+                proposed_turns = int(custom.get("proposed_turns", 1))
+            except (TypeError, ValueError):
+                proposed_cost, proposed_turns = 0, 0
+
+            MIN_CUSTOM_PROJECT_COST = 500_000_000_000  # $500B floor -- keeps these meaningful, not free
+            MAX_CUSTOM_PROJECT_TURNS = 15
+
+            if (
+                name and MIN_CUSTOM_PROJECT_COST <= proposed_cost <= kingdom.treasury
+                and 1 <= proposed_turns <= MAX_CUSTOM_PROJECT_TURNS
+            ):
+                kingdom.treasury -= proposed_cost
+                kingdom.custom_researching = {
+                    "name": name,
+                    "description": description,
+                    "category": category,
+                    "cost": proposed_cost,
+                    "turns_needed": proposed_turns,
+                    "progress": 0,
+                }
+                applied.append(f"began custom project '{name}' (-${proposed_cost:,.0f}, {proposed_turns} turns)")
+            elif name:
+                applied.append(f"(custom project '{name}' rejected -- cost/turns out of bounds or unaffordable)")
+
+        # advance any in-progress custom project by this turn's research speed
+        if kingdom.custom_researching:
+            kingdom.custom_researching["progress"] += kingdom.research_speed_multiplier
+            if kingdom.custom_researching["progress"] >= kingdom.custom_researching["turns_needed"]:
+                finished = kingdom.custom_researching
+                # power_rating derived mechanically from cost so custom
+                # inventions stay balanced against the fixed tech tree,
+                # regardless of how the AI described it
+                finished["power_rating"] = round(finished["cost"] / 200_000_000, 1)
+                kingdom.custom_projects.append(finished)
+                kingdom.custom_researching = None
+                applied.append(f"completed custom project '{finished['name']}'")
 
         # war declarations
         target = decision.get("declare_war_on")

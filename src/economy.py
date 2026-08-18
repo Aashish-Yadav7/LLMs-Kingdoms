@@ -1,94 +1,123 @@
 """
-Economy tick: applied automatically by the engine every turn, before any AI
-decisions. Kingdoms don't choose their tax rate via free text -- it's a bounded
-numeric action validated here, so nobody can invent infinite money.
+Tech tree. Every kingdom starts with nothing unlocked beyond "basic_industry".
+Costs are in dollars, research_turns is how many full turns of funded research
+it takes. A tech must have all prerequisites unlocked before it can be started.
+
+This is intentionally coarse (not a real 2026 tech tree with hundreds of
+nodes) but every tier reflects a real, sequenced dependency: you cannot
+research guided missiles before basic rocketry, you cannot build a tank
+before combustion engines and armor plating, etc.
 """
 
-from src.military import total_upkeep
-from src.tech_tree import TECH_TREE
+TECH_TREE = {
+    "basic_industry": {
+        "cost": 0, "research_turns": 0, "prereqs": [],
+        "unlocks": ["can build: farms, roads, basic factories"],
+    },
+    "combustion_engines": {
+        "cost": 50_000_000_000, "research_turns": 2, "prereqs": ["basic_industry"],
+        "unlocks": ["can build: trucks, basic artillery"],
+    },
+    "armor_plating": {
+        "cost": 80_000_000_000, "research_turns": 2, "prereqs": ["combustion_engines"],
+        "unlocks": ["can build: armored_vehicle"],
+    },
+    "basic_rocketry": {
+        "cost": 150_000_000_000, "research_turns": 3, "prereqs": ["combustion_engines"],
+        "unlocks": ["can build: rocket_artillery"],
+    },
+    "jet_propulsion": {
+        "cost": 300_000_000_000, "research_turns": 3, "prereqs": ["basic_rocketry"],
+        "unlocks": ["can build: fighter_jet"],
+    },
+    "guided_systems": {
+        "cost": 500_000_000_000, "research_turns": 4, "prereqs": ["basic_rocketry"],
+        "unlocks": ["can build: guided_missile"],
+    },
+    "advanced_materials": {
+        "cost": 400_000_000_000, "research_turns": 3, "prereqs": ["armor_plating"],
+        "unlocks": ["can build: main_battle_tank"],
+    },
+    "naval_engineering": {
+        "cost": 350_000_000_000, "research_turns": 3, "prereqs": ["combustion_engines"],
+        "unlocks": ["can build: destroyer"],
+    },
+    "nuclear_physics": {
+        "cost": 2_000_000_000_000, "research_turns": 8, "prereqs": ["guided_systems", "advanced_materials"],
+        "unlocks": ["can build: nuclear_power_plant (NOT weapons -- see note)"],
+    },
+    "agri_automation": {
+        "cost": 100_000_000_000, "research_turns": 2, "prereqs": ["basic_industry"],
+        "unlocks": ["+30% food production"],
+    },
+    "renewable_grid": {
+        "cost": 200_000_000_000, "research_turns": 3, "prereqs": ["basic_industry"],
+        "unlocks": ["-20% energy upkeep costs"],
+    },
+    "cyber_infrastructure": {
+        "cost": 250_000_000_000, "research_turns": 3, "prereqs": ["basic_industry"],
+        "unlocks": ["intel bonus: see partial info on other kingdoms' public builds"],
+    },
 
-BASE_TAX_RATE_RANGE = (0.10, 0.45)  # kingdoms can set tax rate in this band
-GDP_PER_CAPITA = 45_000  # baseline annual economic output per person, arbitrary but fixed
-FOOD_CONSUMED_PER_CAPITA_PER_TURN = 0.9  # tons/person/turn
-BASE_FOOD_PRODUCTION_PER_CAPITA = 1.05  # tons/person/turn, before tech bonuses
+    # --- Space chain ---
+    "satellite_tech": {
+        "cost": 800_000_000_000, "research_turns": 5, "prereqs": ["guided_systems", "cyber_infrastructure"],
+        "unlocks": ["can build: recon_satellite -- passive intel on other kingdoms' public activity"],
+    },
+    "orbital_rocketry": {
+        "cost": 1_500_000_000_000, "research_turns": 6, "prereqs": ["satellite_tech", "nuclear_physics"],
+        "unlocks": ["can build: launch_vehicle -- required for any orbital payload"],
+    },
+    "space_program": {
+        "cost": 3_000_000_000_000, "research_turns": 8, "prereqs": ["orbital_rocketry"],
+        "unlocks": ["can build: space_station -- major prestige + research speed bonus"],
+    },
+    "deep_space_engineering": {
+        "cost": 6_000_000_000_000, "research_turns": 10, "prereqs": ["space_program"],
+        "unlocks": ["can build: deep_space_vessel -- endgame tech, no direct combat use"],
+    },
+
+    # --- Advanced military / real-world-adjacent projects ---
+    "aircraft_carrier_program": {
+        "cost": 4_000_000_000_000, "research_turns": 6, "prereqs": ["jet_propulsion", "naval_engineering"],
+        "unlocks": ["can build: aircraft_carrier -- mobile air base, real-world tech"],
+    },
+    "aerial_fortress_program": {
+        "cost": 9_000_000_000_000, "research_turns": 9, "prereqs": ["aircraft_carrier_program", "advanced_materials"],
+        "unlocks": ["can build: aerial_fortress -- huge airborne mobile base (helicarrier-class); speculative but grounded in real aerospace/materials tech, not fictional physics"],
+    },
+    "transport_infrastructure": {
+        "cost": 120_000_000_000, "research_turns": 2, "prereqs": ["combustion_engines"],
+        "unlocks": ["+15% tax income (better roads/ports/logistics move goods and troops faster)"],
+    },
+    "petrochemical_refining": {
+        "cost": 180_000_000_000, "research_turns": 2, "prereqs": ["basic_industry"],
+        "unlocks": ["+10% tax income (refineries turn raw oil/gas into higher-value fuel and materials)"],
+    },
+}
+
+# NOTE: nuclear weapons are deliberately absent from this tree. If you want a
+# WMD tier for narrative tension, model it as a diplomatic/economic "doomsday"
+# stat that's extremely costly and triggers automatic coalition response from
+# every other kingdom, rather than an actually-simulated weapon -- this keeps
+# the game about strategy/economy rather than needing real weapons design
+# details, which isn't something to simulate mechanically.
 
 
-def clamp_tax_rate(rate: float) -> float:
-    lo, hi = BASE_TAX_RATE_RANGE
-    return max(lo, min(hi, rate))
+def get_available_techs(unlocked: set) -> list:
+    """Return tech ids the kingdom could start now (prereqs met, not yet unlocked)."""
+    available = []
+    for tech_id, data in TECH_TREE.items():
+        if tech_id in unlocked:
+            continue
+        if all(p in unlocked for p in data["prereqs"]):
+            available.append(tech_id)
+    return available
 
 
-def run_economy_tick(kingdom) -> dict:
-    """
-    Mutates kingdom.treasury / food_storage / population in place based on its
-    current tax_rate and unit upkeep. Returns a summary dict for logging.
-    """
-    tax_rate = clamp_tax_rate(kingdom.tax_rate)
-    gross_output = kingdom.population * GDP_PER_CAPITA / 12  # per-turn slice of annual GDP
-    tax_income = gross_output * tax_rate
-
-    upkeep_cost = total_upkeep(kingdom.units)
-
-    food_bonus = 1.0
-    if "agri_automation" in kingdom.unlocked_tech:
-        food_bonus += 0.30
-    food_produced = kingdom.population * BASE_FOOD_PRODUCTION_PER_CAPITA * food_bonus
-    food_needed = kingdom.population * FOOD_CONSUMED_PER_CAPITA_PER_TURN
-    food_delta = food_produced - food_needed
-
-    energy_discount = 0.8 if "renewable_grid" in kingdom.unlocked_tech else 1.0
-    infra_upkeep = kingdom.population * 120 * energy_discount  # baseline infrastructure cost
-
-    net_change = tax_income - upkeep_cost - infra_upkeep
-
-    kingdom.treasury += net_change
-    kingdom.food_storage += food_delta
-
-    # Starvation consequence: if food storage goes negative, population and
-    # stability suffer -- money alone cannot fix a starving population instantly.
-    starving = kingdom.food_storage < 0
-    if starving:
-        population_loss = int(kingdom.population * 0.01)
-        kingdom.population = max(0, kingdom.population - population_loss)
-        kingdom.food_storage = 0
-        kingdom.stability = max(0, kingdom.stability - 5)
-    else:
-        population_growth = int(kingdom.population * 0.0015)
-        kingdom.population += population_growth
-
-    return {
-        "tax_rate": round(tax_rate, 3),
-        "tax_income": round(tax_income, 2),
-        "upkeep_cost": round(upkeep_cost, 2),
-        "infra_upkeep": round(infra_upkeep, 2),
-        "net_treasury_change": round(net_change, 2),
-        "food_delta": round(food_delta, 2),
-        "starving": starving,
-        "treasury_after": round(kingdom.treasury, 2),
-        "population_after": kingdom.population,
-    }
-
-
-def research_tick(kingdom) -> dict:
-    """Advance any in-progress research by one turn if funded.
-    research_speed_multiplier lets a kingdom progress faster than 1 turn's
-    worth per turn (used for player_llm's strategic edge)."""
-    if not kingdom.researching:
-        return {"status": "idle"}
-
-    tech_id = kingdom.researching
-    tech = TECH_TREE[tech_id]
-    kingdom.research_progress += getattr(kingdom, "research_speed_multiplier", 1.0)
-
-    if kingdom.research_progress >= tech["research_turns"]:
-        kingdom.unlocked_tech.add(tech_id)
-        kingdom.researching = None
-        kingdom.research_progress = 0
-        return {"status": "completed", "tech": tech_id}
-
-    return {
-        "status": "in_progress",
-        "tech": tech_id,
-        "progress": round(kingdom.research_progress, 1),
-        "needed": tech["research_turns"],
-    }
+def can_research(tech_id: str, unlocked: set) -> bool:
+    if tech_id not in TECH_TREE:
+        return False
+    if tech_id in unlocked:
+        return False
+    return all(p in unlocked for p in TECH_TREE[tech_id]["prereqs"])

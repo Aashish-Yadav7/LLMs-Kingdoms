@@ -46,6 +46,8 @@ class MockAgent:
             "research": "combustion_engines",
             "build_units": {"infantry": random.randint(50, 200)},
             "move_units": None,
+            "repair_investment": None,
+            "custom_project": None,
             "secret_meeting_request": None,
             "declare_war_on": None,
             "reasoning": "mock agent test action",
@@ -53,6 +55,11 @@ class MockAgent:
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Run a mock (no-API) playthrough to test the engine.")
+    parser.add_argument("--turns", type=int, default=10, help="How many turns to simulate (default 10)")
+    args = parser.parse_args()
+
     print("=== Kingdoms AI: mock playthrough (no API calls) ===\n")
     game_state = GameState.new_game()
 
@@ -65,8 +72,8 @@ def main():
 
     agents = {kid: MockAgent(kid) for kid in game_state.kingdoms}
 
-    for turn in range(3):
-        print(f"--- Running turn {turn + 1} ---")
+    for turn in range(args.turns):
+        print(f"--- Running turn {turn + 1}/{args.turns} ---")
         run_turn(game_state, agents, log_dir="logs")
         save_path = f"data/save_turn_{game_state.turn}.json"
         game_state.save(save_path)

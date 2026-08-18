@@ -38,6 +38,9 @@ class Kingdom:
     unit_positions: dict = field(default_factory=dict)  # province_id -> {"infantry": 100, ...} -- where units are actually stationed
     research_speed_multiplier: float = 1.0  # >1.0 = researches faster; used for player_llm's edge
 
+    custom_researching: dict | None = None  # {"name":..., "description":..., "category":..., "cost":..., "turns_needed":..., "progress":...}
+    custom_projects: list = field(default_factory=list)  # completed custom inventions: [{"name", "description", "category", "cost", "power_rating"}]
+
     def public_summary(self) -> dict:
         """What OTHER kingdoms are allowed to see about this one.
         Resources are shown as an approximate number (real intel estimate,

@@ -76,6 +76,20 @@ TECH_TREE = {
         "cost": 6_000_000_000_000, "research_turns": 10, "prereqs": ["space_program"],
         "unlocks": ["can build: deep_space_vessel -- endgame tech, no direct combat use"],
     },
+
+    # --- Advanced military / real-world-adjacent projects ---
+    "aircraft_carrier_program": {
+        "cost": 4_000_000_000_000, "research_turns": 6, "prereqs": ["jet_propulsion", "naval_engineering"],
+        "unlocks": ["can build: aircraft_carrier -- mobile air base, real-world tech"],
+    },
+    "aerial_fortress_program": {
+        "cost": 9_000_000_000_000, "research_turns": 9, "prereqs": ["aircraft_carrier_program", "advanced_materials"],
+        "unlocks": ["can build: aerial_fortress -- huge airborne mobile base (helicarrier-class); speculative but grounded in real aerospace/materials tech, not fictional physics"],
+    },
+    "transport_infrastructure": {
+        "cost": 120_000_000_000, "research_turns": 2, "prereqs": ["combustion_engines"],
+        "unlocks": ["+15% tax income (better roads/ports/logistics move goods and troops faster)"],
+    },
 }
 
 # NOTE: nuclear weapons are deliberately absent from this tree. If you want a

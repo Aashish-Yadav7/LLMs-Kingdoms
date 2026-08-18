@@ -32,6 +32,12 @@ UNIT_TYPES = {
     "destroyer": {
         "cost": 1_800_000_000, "upkeep": 15_000_000, "power": 30, "requires_tech": "naval_engineering",
     },
+    "aircraft_carrier": {
+        "cost": 13_000_000_000, "upkeep": 90_000_000, "power": 60, "requires_tech": "aircraft_carrier_program",
+    },
+    "aerial_fortress": {
+        "cost": 45_000_000_000, "upkeep": 300_000_000, "power": 150, "requires_tech": "aerial_fortress_program",
+    },
 }
 
 
