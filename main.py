@@ -44,6 +44,10 @@ def main():
         game_state.save(save_path)
         console.print(f"[dim]Saved to {save_path}[/dim]\n")
 
+    console.print("[bold]Opening the god view in your browser...[/bold]")
+    import webbrowser
+    webbrowser.open(Path("maps/latest.html").resolve().as_uri())
+
 
 if __name__ == "__main__":
     main()
