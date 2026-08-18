@@ -44,17 +44,17 @@ KINGDOMS = {
             "welfare, and fortification; slow to commit to offensive wars."
         ),
     },
-    # South pole kingdom -- reserved for YOUR own LLM. Point this at your
-    # hosted model via CUSTOM_MODEL_BASE_URL / CUSTOM_MODEL_API_KEY in .env,
-    # or swap the model string to any OpenRouter id if you want to test with
-    # a stand-in before your own model is ready. This kingdom starts on the
-    # richest territory on the map (every resource, high density) and gets
-    # real strategic advantages defined below (intel, research speed, tech
-    # head start) -- none of which are ever mentioned to the other four
-    # kingdoms' prompts.
+    # South pole kingdom -- reserved for YOUR own LLM. Defaults to a local
+    # Ollama model (free, runs on your machine, no API key needed) -- see
+    # README for the one-time setup. Swap to "groq/llama-3.3-70b-versatile"
+    # for faster free-tier inference, "custom/your-model-id" for something
+    # you host yourself, or any OpenRouter model string if you'd rather test
+    # with a frontier model first. This kingdom gets real strategic
+    # advantages defined below (intel, research speed, tech head start) --
+    # none of which are ever mentioned to the other four kingdoms' prompts.
     "player_llm": {
         "name": "The Frozen Reach",
-        "model": "custom/your-model-id",
+        "model": "ollama/llama3.1",
         "personality": (
             "An empire-builder in the mold of Napoleon and Alexander: relentlessly "
             "expansionist, decisive, and opportunistic, but always in service of a "
@@ -89,5 +89,5 @@ MAP_RNG_SEED = 42  # change this for a different randomized resource layout each
 PHASES = ["economy_tick", "private_planning", "conference", "secret_meetings", "resolution"]
 
 # Diplomacy limits (to stop context/token blowup, not a "real" game rule)
-MAX_CONFERENCE_MESSAGES_PER_KINGDOM_PER_TURN = 2
-MAX_SECRET_MEETINGS_PER_TURN = 3
+MAX_CONFERENCE_MESSAGES_PER_KINGDOM_PER_TURN = 4
+MAX_SECRET_MEETINGS_PER_TURN = 4
