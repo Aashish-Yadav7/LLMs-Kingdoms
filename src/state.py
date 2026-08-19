@@ -133,6 +133,11 @@ class GameState:
     secret_meeting_log: dict = field(default_factory=dict)  # pair_key -> list of messages
     history: list = field(default_factory=list)  # turn summaries for narrative continuity
     unclaimed_islands: dict = field(default_factory=dict)  # island_id -> {resources, controlled_by, ...}
+    province_control: dict = field(default_factory=dict)  # province_id -> kingdom_id, ONLY set for provinces
+        # that differ from their default owner (a continent's own kingdom, or nobody for islands).
+        # Populated by combat capture and island claiming (orchestrator.py). Absence of an entry
+        # means "still owned by whoever data/map.json's continent.owner says" -- see
+        # src.orchestrator.effective_owner(), which is the only place this should be read through.
 
     def save(self, path: str):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -146,6 +151,7 @@ class GameState:
             "secret_meeting_log": self.secret_meeting_log,
             "history": self.history,
             "unclaimed_islands": self.unclaimed_islands,
+            "province_control": self.province_control,
         }
         Path(path).write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -161,6 +167,7 @@ class GameState:
         gs.secret_meeting_log = data.get("secret_meeting_log", {})
         gs.history = data.get("history", [])
         gs.unclaimed_islands = data.get("unclaimed_islands", {})
+        gs.province_control = data.get("province_control", {})
         return gs
 
     @classmethod
