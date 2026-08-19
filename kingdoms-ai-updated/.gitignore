@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+*.pyc
+.env
+data/save_*.json
+logs/turn_*.md

@@ -1,3 +1,10 @@
+# Kingdoms AI — Collaborator Context
+
+Paste this whole file into a new Claude conversation before asking for help.
+It gives Claude everything it needs to work on this repo as a collaborator
+without you having to re-explain the project from scratch.
+
+---
 
 ## What this project is
 
