@@ -1,0 +1,813 @@
+diff -ru before/data/map.json after/data/map.json
+--- before/data/map.json	2026-08-19 17:53:25.642752540 +0000
++++ after/data/map.json	2026-08-18 09:48:32.916474670 +0000
+@@ -1,17 +1,58 @@
+ {
+-  "_notes": "Derived from the world map image. Four top continents go to the four AI kingdoms. The southern polar continent is reserved for the player's own LLM, fully resourced with every element at high density. Mid-ocean islands are unclaimed/neutral. Terrain is diversified per province (desert, grassland, forest, evergreen_forest, hills, mountain, tundra, coastal, icecap, volcanic) to mirror real-world biome variety.",
+-
++  "_notes": "Derived from the world map image. Four top continents go to the four AI kingdoms. The southern polar continent is reserved for the player's own LLM, fully resourced with every element at high density. Mid-ocean islands are unclaimed/neutral. Terrain is diversified per province (desert, grassland, forest, evergreen_forest, hills, mountain, tundra, coastal, icecap, volcanic) to mirror real-world biome variety. 'borders' on every province/island is a list of directly adjacent province/island ids -- the only valid single-hop movement/attack targets from that location. Continents form internal rings; islands are the sole sea-lane chokepoints connecting one kingdom's landmass to another's.",
+   "continents": {
+     "north": {
+       "display_name": "Northwestern Continent",
+       "owner": "north",
+       "description": "Large landmass, top-left of the map.",
+       "provinces": [
+-        {"id": "north_1", "name": "Highfell", "terrain": "desert"},
+-        {"id": "north_2", "name": "Greywater Basin", "terrain": "grassland"},
+-        {"id": "north_3", "name": "Sundermark", "terrain": "coastal"},
+-        {"id": "north_4", "name": "Ashenvale", "terrain": "evergreen_forest"},
+-        {"id": "north_5", "name": "Coldreach", "terrain": "mountain"}
++        {
++          "id": "north_1",
++          "name": "Highfell",
++          "terrain": "desert",
++          "borders": [
++            "north_2",
++            "north_5"
++          ]
++        },
++        {
++          "id": "north_2",
++          "name": "Greywater Basin",
++          "terrain": "grassland",
++          "borders": [
++            "north_1",
++            "north_3"
++          ]
++        },
++        {
++          "id": "north_3",
++          "name": "Sundermark",
++          "terrain": "coastal",
++          "borders": [
++            "north_2",
++            "north_4"
++          ]
++        },
++        {
++          "id": "north_4",
++          "name": "Ashenvale",
++          "terrain": "evergreen_forest",
++          "borders": [
++            "north_3",
++            "north_5"
++          ]
++        },
++        {
++          "id": "north_5",
++          "name": "Coldreach",
++          "terrain": "mountain",
++          "borders": [
++            "isle_1",
++            "isle_2",
++            "north_1",
++            "north_4"
++          ]
++        }
+       ],
+       "resource_density": "medium"
+     },
+@@ -20,11 +61,53 @@
+       "owner": "east",
+       "description": "Mid-sized landmass, top-center of the map.",
+       "provinces": [
+-        {"id": "east_1", "name": "Veldrun", "terrain": "grassland"},
+-        {"id": "east_2", "name": "Thornfield", "terrain": "forest"},
+-        {"id": "east_3", "name": "Brackenhold", "terrain": "coastal"},
+-        {"id": "east_4", "name": "Frostgate", "terrain": "tundra"},
+-        {"id": "east_5", "name": "Hollowridge", "terrain": "hills"}
++        {
++          "id": "east_1",
++          "name": "Veldrun",
++          "terrain": "grassland",
++          "borders": [
++            "east_2",
++            "east_5",
++            "isle_1"
++          ]
++        },
++        {
++          "id": "east_2",
++          "name": "Thornfield",
++          "terrain": "forest",
++          "borders": [
++            "east_1",
++            "east_3"
++          ]
++        },
++        {
++          "id": "east_3",
++          "name": "Brackenhold",
++          "terrain": "coastal",
++          "borders": [
++            "east_2",
++            "east_4"
++          ]
++        },
++        {
++          "id": "east_4",
++          "name": "Frostgate",
++          "terrain": "tundra",
++          "borders": [
++            "east_3",
++            "east_5"
++          ]
++        },
++        {
++          "id": "east_5",
++          "name": "Hollowridge",
++          "terrain": "hills",
++          "borders": [
++            "east_1",
++            "east_4",
++            "isle_3"
++          ]
++        }
+       ],
+       "resource_density": "medium"
+     },
+@@ -33,11 +116,53 @@
+       "owner": "south",
+       "description": "Large landmass, top-right of the map, main body.",
+       "provinces": [
+-        {"id": "south_1", "name": "Aurelia", "terrain": "grassland"},
+-        {"id": "south_2", "name": "Duskmere", "terrain": "coastal"},
+-        {"id": "south_3", "name": "Stonereach", "terrain": "hills"},
+-        {"id": "south_4", "name": "Vaelwood", "terrain": "evergreen_forest"},
+-        {"id": "south_5", "name": "Emberfall", "terrain": "desert"}
++        {
++          "id": "south_1",
++          "name": "Aurelia",
++          "terrain": "grassland",
++          "borders": [
++            "isle_3",
++            "south_2",
++            "south_5"
++          ]
++        },
++        {
++          "id": "south_2",
++          "name": "Duskmere",
++          "terrain": "coastal",
++          "borders": [
++            "south_1",
++            "south_3"
++          ]
++        },
++        {
++          "id": "south_3",
++          "name": "Stonereach",
++          "terrain": "hills",
++          "borders": [
++            "south_2",
++            "south_4"
++          ]
++        },
++        {
++          "id": "south_4",
++          "name": "Vaelwood",
++          "terrain": "evergreen_forest",
++          "borders": [
++            "south_3",
++            "south_5"
++          ]
++        },
++        {
++          "id": "south_5",
++          "name": "Emberfall",
++          "terrain": "desert",
++          "borders": [
++            "isle_4",
++            "south_1",
++            "south_4"
++          ]
++        }
+       ],
+       "resource_density": "medium"
+     },
+@@ -46,11 +171,53 @@
+       "owner": "west",
+       "description": "Landmass at the far right edge of the map, partially cut off, mountainous.",
+       "provinces": [
+-        {"id": "west_1", "name": "Ironspire", "terrain": "mountain"},
+-        {"id": "west_2", "name": "Rimehaven", "terrain": "coastal"},
+-        {"id": "west_3", "name": "Grimwatch", "terrain": "hills"},
+-        {"id": "west_4", "name": "Hollowmere", "terrain": "forest"},
+-        {"id": "west_5", "name": "Dunwarren", "terrain": "grassland"}
++        {
++          "id": "west_1",
++          "name": "Ironspire",
++          "terrain": "mountain",
++          "borders": [
++            "isle_4",
++            "west_2",
++            "west_5"
++          ]
++        },
++        {
++          "id": "west_2",
++          "name": "Rimehaven",
++          "terrain": "coastal",
++          "borders": [
++            "west_1",
++            "west_3"
++          ]
++        },
++        {
++          "id": "west_3",
++          "name": "Grimwatch",
++          "terrain": "hills",
++          "borders": [
++            "west_2",
++            "west_4"
++          ]
++        },
++        {
++          "id": "west_4",
++          "name": "Hollowmere",
++          "terrain": "forest",
++          "borders": [
++            "west_3",
++            "west_5"
++          ]
++        },
++        {
++          "id": "west_5",
++          "name": "Dunwarren",
++          "terrain": "grassland",
++          "borders": [
++            "isle_6",
++            "west_1",
++            "west_4"
++          ]
++        }
+       ],
+       "resource_density": "medium"
+     },
+@@ -59,23 +226,120 @@
+       "owner": "player_llm",
+       "description": "Southern polar continent. Reserved for the player's own LLM-controlled kingdom. Every resource type present at high density -- the richest territory on the map, but harsh terrain to develop.",
+       "provinces": [
+-        {"id": "pole_1", "name": "Sunveil Crown", "terrain": "icecap"},
+-        {"id": "pole_2", "name": "Cinderfrost", "terrain": "volcanic_tundra"},
+-        {"id": "pole_3", "name": "Whitehollow", "terrain": "icecap"},
+-        {"id": "pole_4", "name": "Deepvein Hollow", "terrain": "mountain"},
+-        {"id": "pole_5", "name": "The Still Coast", "terrain": "coastal"}
++        {
++          "id": "pole_1",
++          "name": "Sunveil Crown",
++          "terrain": "icecap",
++          "borders": [
++            "isle_5",
++            "pole_2",
++            "pole_5"
++          ]
++        },
++        {
++          "id": "pole_2",
++          "name": "Cinderfrost",
++          "terrain": "volcanic_tundra",
++          "borders": [
++            "pole_1",
++            "pole_3"
++          ]
++        },
++        {
++          "id": "pole_3",
++          "name": "Whitehollow",
++          "terrain": "icecap",
++          "borders": [
++            "pole_2",
++            "pole_4"
++          ]
++        },
++        {
++          "id": "pole_4",
++          "name": "Deepvein Hollow",
++          "terrain": "mountain",
++          "borders": [
++            "pole_3",
++            "pole_5"
++          ]
++        },
++        {
++          "id": "pole_5",
++          "name": "The Still Coast",
++          "terrain": "coastal",
++          "borders": [
++            "isle_7",
++            "pole_1",
++            "pole_4"
++          ]
++        }
+       ],
+       "resource_density": "very_high"
+     }
+   },
+-
+   "unclaimed_islands": [
+-    {"id": "isle_1", "name": "Skerry Isle", "terrain": "island"},
+-    {"id": "isle_2", "name": "Thistlecay", "terrain": "island"},
+-    {"id": "isle_3", "name": "Windrift Atoll", "terrain": "island"},
+-    {"id": "isle_4", "name": "Saltmark Chain", "terrain": "archipelago"},
+-    {"id": "isle_5", "name": "Verdant Shoal", "terrain": "island"},
+-    {"id": "isle_6", "name": "Ashcinder Rock", "terrain": "volcanic_island"},
+-    {"id": "isle_7", "name": "Halcyon Keys", "terrain": "archipelago"}
++    {
++      "id": "isle_1",
++      "name": "Skerry Isle",
++      "terrain": "island",
++      "borders": [
++        "east_1",
++        "north_5"
++      ]
++    },
++    {
++      "id": "isle_2",
++      "name": "Thistlecay",
++      "terrain": "island",
++      "borders": [
++        "north_5"
++      ]
++    },
++    {
++      "id": "isle_3",
++      "name": "Windrift Atoll",
++      "terrain": "island",
++      "borders": [
++        "east_5",
++        "south_1"
++      ]
++    },
++    {
++      "id": "isle_4",
++      "name": "Saltmark Chain",
++      "terrain": "archipelago",
++      "borders": [
++        "isle_5",
++        "south_5",
++        "west_1"
++      ]
++    },
++    {
++      "id": "isle_5",
++      "name": "Verdant Shoal",
++      "terrain": "island",
++      "borders": [
++        "isle_4",
++        "pole_1"
++      ]
++    },
++    {
++      "id": "isle_6",
++      "name": "Ashcinder Rock",
++      "terrain": "volcanic_island",
++      "borders": [
++        "isle_7",
++        "west_5"
++      ]
++    },
++    {
++      "id": "isle_7",
++      "name": "Halcyon Keys",
++      "terrain": "archipelago",
++      "borders": [
++        "isle_6",
++        "pole_5"
++      ]
++    }
+   ]
+-}
++}
+\ No newline at end of file
+diff -ru before/src/map.py after/src/map.py
+--- before/src/map.py	2026-08-19 17:53:25.645879416 +0000
++++ after/src/map.py	2026-08-18 09:48:32.917277759 +0000
+@@ -114,3 +114,48 @@
+ def continent_province_ids(continent_id: str) -> list:
+     world = json.loads(MAP_PATH.read_text())
+     return [p["id"] for p in world["continents"][continent_id]["provinces"]]
++
++
++def province_owner(province_id: str, world: dict | None = None) -> str | None:
++    """Kingdom id that owns this province's continent, or None if it's an
++    unclaimed island (or an unrecognized id). Ownership here is tracked at
++    the continent level -- there's no per-province conquest/capture yet,
++    so a battle won on foreign soil doesn't currently change who 'owns' it.
++    """
++    world = world or load_map()
++    for cont_id, cont in world["continents"].items():
++        if any(p["id"] == province_id for p in cont["provinces"]):
++            return cont["owner"]
++    return None  # unclaimed island, or unknown id
++
++
++def is_island(province_id: str, world: dict | None = None) -> bool:
++    world = world or load_map()
++    return any(isle["id"] == province_id for isle in world["unclaimed_islands"])
++
++
++def provinces_adjacent(a: str, b: str, world: dict | None = None) -> bool:
++    """True if a and b directly border each other per data/map.json's
++    'borders' lists. This is the only way a single move_units action can
++    move (or attack) from one location to another -- no teleporting across
++    the map in one turn, and no attacking a kingdom you can't reach yet."""
++    world = world or load_map()
++    borders = _province_borders_index(world)
++    return b in borders.get(a, set()) or a in borders.get(b, set())
++
++
++def province_borders(province_id: str, world: dict | None = None) -> list:
++    """List of province/island ids directly adjacent to this one -- the
++    only valid single-hop move/attack targets from here."""
++    world = world or load_map()
++    return sorted(_province_borders_index(world).get(province_id, set()))
++
++
++def _province_borders_index(world: dict) -> dict:
++    index = {}
++    for cont in world["continents"].values():
++        for p in cont["provinces"]:
++            index[p["id"]] = set(p.get("borders", []))
++    for isle in world["unclaimed_islands"]:
++        index[isle["id"]] = set(isle.get("borders", []))
++    return index
+diff -ru before/src/map_render.py after/src/map_render.py
+--- before/src/map_render.py	2026-08-19 17:53:25.646013701 +0000
++++ after/src/map_render.py	2026-08-18 09:48:32.917293344 +0000
+@@ -59,9 +59,20 @@
+ 
+     # Build full exact data for every kingdom -- you're the spectator, you
+     # always get the real numbers, not the noisy version kingdoms show each other.
++    # Every province id -> display name, across all continents and islands,
++    # so a kingdom's forces stationed abroad (an invasion, or a claimed
++    # island) can still be labeled properly instead of just showing a raw id.
++    province_names = {}
++    for cont in world["continents"].values():
++        for p in cont["provinces"]:
++            province_names[p["id"]] = p["name"]
++    for isle in world["unclaimed_islands"]:
++        province_names[isle["id"]] = isle["name"]
++
+     kingdom_data = {}
+     for kid, k in game_state.kingdoms.items():
+         cont = world["continents"][k.home_continent]
++        home_province_ids = {p["id"] for p in cont["provinces"]}
+         provinces = []
+         for prov in cont["provinces"]:
+             units_here = k.unit_positions.get(prov["id"], {})
+@@ -70,6 +81,15 @@
+                 "terrain": prov["terrain"].replace("_", " ").title(),
+                 "units": {UNIT_LABELS.get(u, u): c for u, c in units_here.items() if c > 0},
+             })
++        # Forces stationed outside home territory -- invasions in progress,
++        # staging at a chokepoint, or units sitting on a claimed island.
++        forces_abroad = []
++        for prov_id, units_here in k.unit_positions.items():
++            if prov_id in home_province_ids:
++                continue
++            live = {UNIT_LABELS.get(u, u): c for u, c in units_here.items() if c > 0}
++            if live:
++                forces_abroad.append({"name": province_names.get(prov_id, prov_id), "units": live})
+         kingdom_data[kid] = {
+             "name": k.name,
+             "continent": cont["display_name"],
+@@ -93,6 +113,7 @@
+             "alliances": k.alliances or ["(none)"],
+             "at_war_with": k.at_war_with or ["(none)"],
+             "provinces": provinces,
++            "forces_abroad": forces_abroad,
+         }
+ 
+     hotspot_divs = []
+@@ -110,8 +131,13 @@
+         """)
+ 
+     island_chips = "".join(
+-        f"<span class='island-chip'>{isle['name']}</span>"
++        (
++            f"<span class='island-chip' style='border-color:{KINGDOM_COLORS.get(controlled_by, '#475569')}'>"
++            f"{isle['name']}" + (f" ({game_state.kingdoms[controlled_by].name})" if controlled_by else "") +
++            "</span>"
++        )
+         for isle in world["unclaimed_islands"]
++        for controlled_by in [game_state.unclaimed_islands.get(isle["id"], {}).get("controlled_by")]
+     )
+ 
+     conference_html = "".join(
+@@ -253,6 +279,15 @@
+         <div class="resource-grid">${{resourcesHtml}}</div>
+         <h3 style="margin-top:16px; margin-bottom:4px;">Provinces & Deployed Units</h3>
+         ${{provincesHtml}}
++        ${{d.forces_abroad.length ? `
++          <h3 style="margin-top:16px; margin-bottom:4px; color:#f87171;">Forces Abroad (invading / staged / claimed)</h3>
++          ${{d.forces_abroad.map(f => `
++            <div class="province-card" style="border-color:#f87171;">
++              <div class="pname">${{f.name}}</div>
++              <div>${{Object.entries(f.units).map(([u,c]) => `<span class="unit-badge">${{u}} x${{c}}</span>`).join('')}}</div>
++            </div>
++          `).join('')}}
++        ` : ''}}
+       `;
+       document.getElementById('kingdom-panel').classList.add('open');
+     }}
+diff -ru before/src/orchestrator.py after/src/orchestrator.py
+--- before/src/orchestrator.py	2026-08-19 17:53:25.645614699 +0000
++++ after/src/orchestrator.py	2026-08-18 09:48:32.917171763 +0000
+@@ -12,7 +12,10 @@
+ from src.tech_tree import TECH_TREE, can_research, get_available_techs
+ from src.diplomacy import run_conference, run_secret_meetings
+ from src.agents.llm_agent import LLMAgent
+-from src.map import capital_province, continent_province_ids
++from src.map import (
++    capital_province, continent_province_ids,
++    province_owner, provinces_adjacent, province_borders, is_island,
++)
+ 
+ 
+ def build_agents(game_state) -> dict:
+@@ -59,6 +62,10 @@
+         available_techs = get_available_techs(kingdom.unlocked_tech)
+         buildable_units = [u for u in UNIT_TYPES if can_build_unit(u, kingdom.unlocked_tech)]
+         own_provinces = continent_province_ids(kingdom.home_continent)
++        frontier = {
++            prov: province_borders(prov) for prov in own_provinces
++            if any(province_owner(b) != kingdom.id for b in province_borders(prov))
++        }
+ 
+         prompt = (
+             f"Turn {game_state.turn}. Your private state:\n{kingdom.private_summary()}\n\n"
+@@ -72,22 +79,33 @@
+             f"Unit costs/upkeep reference: { {u: {'cost': d['cost'], 'upkeep': d['upkeep']} for u, d in UNIT_TYPES.items()} }\n"
+             f"Your provinces (for troop movement): {own_provinces}\n"
+             f"Current unit deployment by province: {kingdom.unit_positions}\n"
++            f"Your frontier provinces and what borders them beyond your own territory "
++            f"(the only places a single move can reach outside your kingdom): {frontier}\n"
+             f"Your custom project in progress: {kingdom.custom_researching or 'none'}\n"
+             f"Your completed custom projects: {[p['name'] for p in kingdom.custom_projects]}\n\n"
+             "Decide this turn's action. You may set your tax rate (0.10-0.45), "
+             "start researching one tech (or continue current research), "
+             "build units (limited by treasury; new units appear at your capital "
+-            f"province '{own_provinces[0]}'), move existing units between your own "
+-            "provinces, invest money to repair stability, propose your OWN custom "
+-            "project (a named invention with a cost and turn count you set -- must "
+-            "cost at least $500B and take 1-15 turns, engine will validate affordability), "
+-            "and/or request a secret meeting with one other kingdom by id. "
+-            "You may also declare an attack on another kingdom if you're prepared to."
++            f"province '{own_provinces[0]}'), invest money to repair stability, propose "
++            "your OWN custom project (a named invention with a cost and turn count you "
++            "set -- must cost at least $500B and take 1-15 turns, engine will validate "
++            "affordability), and/or request a secret meeting with one other kingdom by id.\n\n"
++            "Movement/attack: 'move_units' moves one unit type between two DIRECTLY "
++            "ADJACENT provinces only (see the frontier map above and each other kingdom's "
++            "province borders) -- no teleporting across the map in one turn. Moving into "
++            "your own province is peaceful repositioning. Moving into a province belonging "
++            "to a kingdom you are at war with is an ATTACK: if enemy units are stationed "
++            "there, combat resolves this turn using only the forces actually present in "
++            "that province, not your whole army. You may also move onto an unclaimed "
++            "island adjacent to your territory to explore/claim it. You may declare war on "
++            "another kingdom this turn (declare_war_on) -- you cannot attack their "
++            "territory until you are at war with them."
+         )
+         schema = (
+             '{"tax_rate": 0.0-1.0, "research": "tech_id or null", '
+             '"build_units": {"unit_type": count, ...}, '
+-            '"move_units": {"from": "province_id", "to": "province_id", "unit_type": "string", "count": int} or null, '
++            '"move_units": {"from": "province_id", "to": "adjacent province_id (own territory, enemy territory if at war, or an adjacent unclaimed island)", '
++            '"unit_type": "string", "count": int} or null, '
+             '"repair_investment": number or null, '
+             '"custom_project": {"name": "string", "description": "string", "category": "string", '
+             '"proposed_cost": number, "proposed_turns": int} or null, '
+@@ -173,27 +191,58 @@
+             if affordable_count < count:
+                 applied.append(f"(could not afford {count - affordable_count}x {unit_type})")
+ 
+-        # troop movement between own provinces -- validated so units can't
+-        # teleport from a province they don't actually have forces in
++        # troop movement -- validated so units can't teleport from a province
++        # they don't actually have forces in, and can only move one hop along
++        # the real adjacency graph (data/map.json 'borders'). Moving into a
++        # province owned by a kingdom you're at war with is how an attack
++        # actually happens: it just places your units there. Combat itself
++        # (step 6, below) resolves locally from whatever units end up
++        # standing in the same province, not from kingdom-wide totals.
+         move = decision.get("move_units")
+         if move and isinstance(move, dict):
+-            own_provinces = set(continent_province_ids(kingdom.home_continent))
+             src, dst, unit_type = move.get("from"), move.get("to"), move.get("unit_type")
+             try:
+                 move_count = int(move.get("count", 0))
+             except (TypeError, ValueError):
+                 move_count = 0
++
++            has_forces = kingdom.unit_positions.get(src, {}).get(unit_type, 0) >= move_count
++            adjacent = isinstance(src, str) and isinstance(dst, str) and provinces_adjacent(src, dst)
++            dst_owner = province_owner(dst) if isinstance(dst, str) else None
++            move_allowed = (
++                dst_owner == kingdom.id  # peaceful move within own territory
++                or dst_owner is None  # unclaimed island (explore/claim)
++                or dst_owner in kingdom.at_war_with  # attack: enemy territory, only if at war
++            )
++
+             if (
+-                src in own_provinces and dst in own_provinces and unit_type in UNIT_TYPES
+-                and move_count > 0
+-                and kingdom.unit_positions.get(src, {}).get(unit_type, 0) >= move_count
++                unit_type in UNIT_TYPES and move_count > 0
++                and has_forces and adjacent and move_allowed
+             ):
+                 kingdom.unit_positions[src][unit_type] -= move_count
+                 kingdom.unit_positions.setdefault(dst, {})
+                 kingdom.unit_positions[dst][unit_type] = (
+                     kingdom.unit_positions[dst].get(unit_type, 0) + move_count
+                 )
+-                applied.append(f"moved {move_count}x {unit_type} from {src} to {dst}")
++                verb = "attacked into" if dst_owner in kingdom.at_war_with else "moved into"
++                applied.append(f"{verb} {dst} with {move_count}x {unit_type} (from {src})")
++
++                # uncontested move onto an unclaimed island claims it
++                if dst_owner is None and is_island(dst):
++                    island = game_state.unclaimed_islands.get(dst)
++                    others_present = any(
++                        oid != kid and other.unit_positions.get(dst, {})
++                        for oid, other in game_state.kingdoms.items()
++                    )
++                    if island and island.get("controlled_by") is None and not others_present:
++                        island["controlled_by"] = kid
++                        applied.append(f"claimed unclaimed island {dst}")
++            elif not move_allowed:
++                applied.append(f"(cannot move into {dst} -- not at war with {dst_owner})")
++            elif not adjacent:
++                applied.append(f"(move rejected: {dst} does not border {src})")
++            elif not has_forces:
++                applied.append(f"(move rejected: no {unit_type} stationed at {src})")
+ 
+         # repair investment -- spend money to actively recover stability
+         # after unrest/riots instead of just waiting on natural recovery
+@@ -272,28 +321,66 @@
+ 
+         log_lines.append(f"- **{kingdom.name}**: " + (", ".join(applied) if applied else "no action"))
+ 
+-    # 6. Combat resolution for any active wars (simple: if at war, a skirmish happens this turn)
++    # 6. Combat resolution -- fought province by province from actual troop
++    # positions (unit_positions), not kingdom-wide totals. A battle only
++    # happens where two kingdoms that are at war both have live units
++    # standing in the SAME province this turn (which move_units, above, is
++    # the only way to cause). Losses are applied both to that province's
++    # unit_positions and to the kingdom's aggregate `units` total, so the
++    # two stay in sync.
+     log_lines.append("\n## Combat\n")
+-    resolved_pairs = set()
++
++    # province_id -> {kingdom_id: {unit_type: count}}, live (>0) units only
++    province_presence: dict[str, dict[str, dict]] = {}
+     for kid, kingdom in game_state.kingdoms.items():
+-        for enemy_id in kingdom.at_war_with:
+-            pair_key = "|".join(sorted([kid, enemy_id]))
+-            if pair_key in resolved_pairs:
+-                continue
+-            resolved_pairs.add(pair_key)
+-            enemy = game_state.kingdoms[enemy_id]
+-            result = resolve_combat(kingdom.units, enemy.units)
+-            if result["outcome"] == "no_combat":
+-                continue
+-            for u, lost in result["attacker_losses"].items():
+-                kingdom.units[u] = max(0, kingdom.units.get(u, 0) - lost)
+-            for u, lost in result["defender_losses"].items():
+-                enemy.units[u] = max(0, enemy.units.get(u, 0) - lost)
+-            log_lines.append(
+-                f"- **{kingdom.name} vs {enemy.name}**: {result['outcome']} "
+-                f"(atk power {result['attacker_power']}, def power {result['defender_power']}) -- "
+-                f"{kingdom.name} lost {result['attacker_losses']}, {enemy.name} lost {result['defender_losses']}"
+-            )
++        for prov_id, units in kingdom.unit_positions.items():
++            live = {u: c for u, c in units.items() if c > 0}
++            if live:
++                province_presence.setdefault(prov_id, {})[kid] = live
++
++    any_combat = False
++    for prov_id, presence in province_presence.items():
++        occupants = list(presence.keys())
++        for i in range(len(occupants)):
++            for j in range(i + 1, len(occupants)):
++                k1, k2 = occupants[i], occupants[j]
++                if k2 not in game_state.kingdoms[k1].at_war_with:
++                    continue  # present in the same province but not at war -- no fight
++
++                owner = province_owner(prov_id)
++                if owner == k1:
++                    attacker_id, defender_id = k2, k1
++                elif owner == k2:
++                    attacker_id, defender_id = k1, k2
++                else:
++                    # neutral ground (unclaimed island): no home-turf side,
++                    # so no terrain bonus and a stable, arbitrary ordering
++                    attacker_id, defender_id = sorted([k1, k2])
++                attacker, defender = game_state.kingdoms[attacker_id], game_state.kingdoms[defender_id]
++                terrain_bonus = 1.15 if owner == defender_id else 1.0
++
++                result = resolve_combat(
++                    presence[attacker_id], presence[defender_id], defender_terrain_bonus=terrain_bonus
++                )
++                if result["outcome"] == "no_combat":
++                    continue
++                any_combat = True
++
++                for u, lost in result["attacker_losses"].items():
++                    attacker.unit_positions[prov_id][u] = max(0, attacker.unit_positions[prov_id].get(u, 0) - lost)
++                    attacker.units[u] = max(0, attacker.units.get(u, 0) - lost)
++                for u, lost in result["defender_losses"].items():
++                    defender.unit_positions[prov_id][u] = max(0, defender.unit_positions[prov_id].get(u, 0) - lost)
++                    defender.units[u] = max(0, defender.units.get(u, 0) - lost)
++
++                log_lines.append(
++                    f"- **{prov_id}**: {attacker.name} (attacking) vs {defender.name} (defending) -- "
++                    f"{result['outcome']} (atk power {result['attacker_power']}, def power {result['defender_power']}) -- "
++                    f"{attacker.name} lost {result['attacker_losses'] or 'nothing'}, "
++                    f"{defender.name} lost {result['defender_losses'] or 'nothing'}"
++                )
++    if not any_combat:
++        log_lines.append("_(no opposing forces shared a province this turn)_")
+ 
+     log_text = "\n".join(log_lines)
+     Path(log_dir).mkdir(parents=True, exist_ok=True)
+diff -ru before/tests/mock_playthrough.py after/tests/mock_playthrough.py
+--- before/tests/mock_playthrough.py	2026-08-19 17:53:25.646279488 +0000
++++ after/tests/mock_playthrough.py	2026-08-18 09:48:32.917332717 +0000
+@@ -25,10 +25,24 @@
+ class MockAgent:
+     """Fakes an LLM's decisions with simple scripted/random behavior -- just
+     enough variety to exercise every part of the engine (builds, research,
+-    movement, diplomacy, occasional war) without calling any API."""
++    movement, diplomacy, occasional war) without calling any API.
+ 
+-    def __init__(self, kid):
++    Turns 1-2: everyone builds up infantry at their capital (north's capital
++      is north_1, the first province in data/map.json's north list).
++    Turn 3: 'north' declares war on 'east'.
++    Turns 4-6: 'north' marches infantry along the real adjacency chain
++      (north_1 -> north_5 -> isle_1 -> east_1), exercising multi-hop
++      movement and, once it lands on east's soil while at war,
++      position-based combat.
++    This is scripted around this repo's actual data/map.json borders, so if
++    the map data ever changes, update the path below to match. Run with
++    --turns 7 or more to see it play out (war on turn 3, landing on turn 6,
++    combat visible in logs/turn_6.md).
++    """
++
++    def __init__(self, kid, game_state):
+         self.kid = kid
++        self.game_state = game_state
+ 
+     def decide(self, prompt, schema_hint):
+         if "SECRET meeting" in prompt:
+@@ -40,8 +54,9 @@
+                 "speak": random.random() < 0.4,
+                 "message": f"Greetings from {self.kid}. We seek prosperity, not conflict.",
+             }
+-        # main turn decision
+-        return {
++
++        turn = self.game_state.turn  # run_turn() increments turn before agents decide
++        decision = {
+             "tax_rate": round(random.uniform(0.18, 0.32), 2),
+             "research": "combustion_engines",
+             "build_units": {"infantry": random.randint(50, 200)},
+@@ -53,11 +68,27 @@
+             "reasoning": "mock agent test action",
+         }
+ 
++        if self.kid == "north":
++            if turn == 3:
++                decision["declare_war_on"] = "east"
++                decision["reasoning"] = "scripted: opening hostilities with east"
++            elif turn == 4:
++                decision["move_units"] = {"from": "north_1", "to": "north_5", "unit_type": "infantry", "count": 150}
++                decision["reasoning"] = "scripted: marching the invasion force from the capital to the frontier"
++            elif turn == 5:
++                decision["move_units"] = {"from": "north_5", "to": "isle_1", "unit_type": "infantry", "count": 150}
++                decision["reasoning"] = "scripted: staging at the isle_1 chokepoint"
++            elif turn == 6:
++                decision["move_units"] = {"from": "isle_1", "to": "east_1", "unit_type": "infantry", "count": 150}
++                decision["reasoning"] = "scripted: landing the invasion on east's soil -- combat should trigger"
++
++        return decision
++
+ 
+ def main():
+     import argparse
+     parser = argparse.ArgumentParser(description="Run a mock (no-API) playthrough to test the engine.")
+-    parser.add_argument("--turns", type=int, default=10, help="How many turns to simulate (default 10)")
++    parser.add_argument("--turns", type=int, default=10, help="How many turns to simulate (default 10, minimum 6 to see the scripted invasion play out)")
+     args = parser.parse_args()
+ 
+     print("=== Kingdoms AI: mock playthrough (no API calls) ===\n")
+@@ -70,7 +101,7 @@
+               f"treasury=${k.treasury:,.0f} | resources={total_res:,}")
+     print()
+ 
+-    agents = {kid: MockAgent(kid) for kid in game_state.kingdoms}
++    agents = {kid: MockAgent(kid, game_state) for kid in game_state.kingdoms}
+ 
+     for turn in range(args.turns):
+         print(f"--- Running turn {turn + 1}/{args.turns} ---")
