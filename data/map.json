@@ -1,17 +1,58 @@
 {
-  "_notes": "Derived from the world map image. Four top continents go to the four AI kingdoms. The southern polar continent is reserved for the player's own LLM, fully resourced with every element at high density. Mid-ocean islands are unclaimed/neutral. Terrain is diversified per province (desert, grassland, forest, evergreen_forest, hills, mountain, tundra, coastal, icecap, volcanic) to mirror real-world biome variety.",
-
+  "_notes": "Derived from the world map image. Four top continents go to the four AI kingdoms. The southern polar continent is reserved for the player's own LLM, fully resourced with every element at high density. Mid-ocean islands are unclaimed/neutral. Terrain is diversified per province (desert, grassland, forest, evergreen_forest, hills, mountain, tundra, coastal, icecap, volcanic) to mirror real-world biome variety. 'borders' on every province/island is a list of directly adjacent province/island ids -- the only valid single-hop movement/attack targets from that location. Continents form internal rings; islands are the sole sea-lane chokepoints connecting one kingdom's landmass to another's.",
   "continents": {
     "north": {
       "display_name": "Northwestern Continent",
       "owner": "north",
       "description": "Large landmass, top-left of the map.",
       "provinces": [
-        {"id": "north_1", "name": "Highfell", "terrain": "desert"},
-        {"id": "north_2", "name": "Greywater Basin", "terrain": "grassland"},
-        {"id": "north_3", "name": "Sundermark", "terrain": "coastal"},
-        {"id": "north_4", "name": "Ashenvale", "terrain": "evergreen_forest"},
-        {"id": "north_5", "name": "Coldreach", "terrain": "mountain"}
+        {
+          "id": "north_1",
+          "name": "Highfell",
+          "terrain": "desert",
+          "borders": [
+            "north_2",
+            "north_5"
+          ]
+        },
+        {
+          "id": "north_2",
+          "name": "Greywater Basin",
+          "terrain": "grassland",
+          "borders": [
+            "north_1",
+            "north_3"
+          ]
+        },
+        {
+          "id": "north_3",
+          "name": "Sundermark",
+          "terrain": "coastal",
+          "borders": [
+            "north_2",
+            "north_4"
+          ]
+        },
+        {
+          "id": "north_4",
+          "name": "Ashenvale",
+          "terrain": "evergreen_forest",
+          "borders": [
+            "north_3",
+            "north_5"
+          ]
+        },
+        {
+          "id": "north_5",
+          "name": "Coldreach",
+          "terrain": "mountain",
+          "borders": [
+            "isle_1",
+            "isle_2",
+            "north_1",
+            "north_4"
+          ]
+        }
       ],
       "resource_density": "medium"
     },
@@ -20,11 +61,53 @@
       "owner": "east",
       "description": "Mid-sized landmass, top-center of the map.",
       "provinces": [
-        {"id": "east_1", "name": "Veldrun", "terrain": "grassland"},
-        {"id": "east_2", "name": "Thornfield", "terrain": "forest"},
-        {"id": "east_3", "name": "Brackenhold", "terrain": "coastal"},
-        {"id": "east_4", "name": "Frostgate", "terrain": "tundra"},
-        {"id": "east_5", "name": "Hollowridge", "terrain": "hills"}
+        {
+          "id": "east_1",
+          "name": "Veldrun",
+          "terrain": "grassland",
+          "borders": [
+            "east_2",
+            "east_5",
+            "isle_1"
+          ]
+        },
+        {
+          "id": "east_2",
+          "name": "Thornfield",
+          "terrain": "forest",
+          "borders": [
+            "east_1",
+            "east_3"
+          ]
+        },
+        {
+          "id": "east_3",
+          "name": "Brackenhold",
+          "terrain": "coastal",
+          "borders": [
+            "east_2",
+            "east_4"
+          ]
+        },
+        {
+          "id": "east_4",
+          "name": "Frostgate",
+          "terrain": "tundra",
+          "borders": [
+            "east_3",
+            "east_5"
+          ]
+        },
+        {
+          "id": "east_5",
+          "name": "Hollowridge",
+          "terrain": "hills",
+          "borders": [
+            "east_1",
+            "east_4",
+            "isle_3"
+          ]
+        }
       ],
       "resource_density": "medium"
     },
@@ -33,11 +116,53 @@
       "owner": "south",
       "description": "Large landmass, top-right of the map, main body.",
       "provinces": [
-        {"id": "south_1", "name": "Aurelia", "terrain": "grassland"},
-        {"id": "south_2", "name": "Duskmere", "terrain": "coastal"},
-        {"id": "south_3", "name": "Stonereach", "terrain": "hills"},
-        {"id": "south_4", "name": "Vaelwood", "terrain": "evergreen_forest"},
-        {"id": "south_5", "name": "Emberfall", "terrain": "desert"}
+        {
+          "id": "south_1",
+          "name": "Aurelia",
+          "terrain": "grassland",
+          "borders": [
+            "isle_3",
+            "south_2",
+            "south_5"
+          ]
+        },
+        {
+          "id": "south_2",
+          "name": "Duskmere",
+          "terrain": "coastal",
+          "borders": [
+            "south_1",
+            "south_3"
+          ]
+        },
+        {
+          "id": "south_3",
+          "name": "Stonereach",
+          "terrain": "hills",
+          "borders": [
+            "south_2",
+            "south_4"
+          ]
+        },
+        {
+          "id": "south_4",
+          "name": "Vaelwood",
+          "terrain": "evergreen_forest",
+          "borders": [
+            "south_3",
+            "south_5"
+          ]
+        },
+        {
+          "id": "south_5",
+          "name": "Emberfall",
+          "terrain": "desert",
+          "borders": [
+            "isle_4",
+            "south_1",
+            "south_4"
+          ]
+        }
       ],
       "resource_density": "medium"
     },
@@ -46,11 +171,53 @@
       "owner": "west",
       "description": "Landmass at the far right edge of the map, partially cut off, mountainous.",
       "provinces": [
-        {"id": "west_1", "name": "Ironspire", "terrain": "mountain"},
-        {"id": "west_2", "name": "Rimehaven", "terrain": "coastal"},
-        {"id": "west_3", "name": "Grimwatch", "terrain": "hills"},
-        {"id": "west_4", "name": "Hollowmere", "terrain": "forest"},
-        {"id": "west_5", "name": "Dunwarren", "terrain": "grassland"}
+        {
+          "id": "west_1",
+          "name": "Ironspire",
+          "terrain": "mountain",
+          "borders": [
+            "isle_4",
+            "west_2",
+            "west_5"
+          ]
+        },
+        {
+          "id": "west_2",
+          "name": "Rimehaven",
+          "terrain": "coastal",
+          "borders": [
+            "west_1",
+            "west_3"
+          ]
+        },
+        {
+          "id": "west_3",
+          "name": "Grimwatch",
+          "terrain": "hills",
+          "borders": [
+            "west_2",
+            "west_4"
+          ]
+        },
+        {
+          "id": "west_4",
+          "name": "Hollowmere",
+          "terrain": "forest",
+          "borders": [
+            "west_3",
+            "west_5"
+          ]
+        },
+        {
+          "id": "west_5",
+          "name": "Dunwarren",
+          "terrain": "grassland",
+          "borders": [
+            "isle_6",
+            "west_1",
+            "west_4"
+          ]
+        }
       ],
       "resource_density": "medium"
     },
@@ -59,23 +226,120 @@
       "owner": "player_llm",
       "description": "Southern polar continent. Reserved for the player's own LLM-controlled kingdom. Every resource type present at high density -- the richest territory on the map, but harsh terrain to develop.",
       "provinces": [
-        {"id": "pole_1", "name": "Sunveil Crown", "terrain": "icecap"},
-        {"id": "pole_2", "name": "Cinderfrost", "terrain": "volcanic_tundra"},
-        {"id": "pole_3", "name": "Whitehollow", "terrain": "icecap"},
-        {"id": "pole_4", "name": "Deepvein Hollow", "terrain": "mountain"},
-        {"id": "pole_5", "name": "The Still Coast", "terrain": "coastal"}
+        {
+          "id": "pole_1",
+          "name": "Sunveil Crown",
+          "terrain": "icecap",
+          "borders": [
+            "isle_5",
+            "pole_2",
+            "pole_5"
+          ]
+        },
+        {
+          "id": "pole_2",
+          "name": "Cinderfrost",
+          "terrain": "volcanic_tundra",
+          "borders": [
+            "pole_1",
+            "pole_3"
+          ]
+        },
+        {
+          "id": "pole_3",
+          "name": "Whitehollow",
+          "terrain": "icecap",
+          "borders": [
+            "pole_2",
+            "pole_4"
+          ]
+        },
+        {
+          "id": "pole_4",
+          "name": "Deepvein Hollow",
+          "terrain": "mountain",
+          "borders": [
+            "pole_3",
+            "pole_5"
+          ]
+        },
+        {
+          "id": "pole_5",
+          "name": "The Still Coast",
+          "terrain": "coastal",
+          "borders": [
+            "isle_7",
+            "pole_1",
+            "pole_4"
+          ]
+        }
       ],
       "resource_density": "very_high"
     }
   },
-
   "unclaimed_islands": [
-    {"id": "isle_1", "name": "Skerry Isle", "terrain": "island"},
-    {"id": "isle_2", "name": "Thistlecay", "terrain": "island"},
-    {"id": "isle_3", "name": "Windrift Atoll", "terrain": "island"},
-    {"id": "isle_4", "name": "Saltmark Chain", "terrain": "archipelago"},
-    {"id": "isle_5", "name": "Verdant Shoal", "terrain": "island"},
-    {"id": "isle_6", "name": "Ashcinder Rock", "terrain": "volcanic_island"},
-    {"id": "isle_7", "name": "Halcyon Keys", "terrain": "archipelago"}
+    {
+      "id": "isle_1",
+      "name": "Skerry Isle",
+      "terrain": "island",
+      "borders": [
+        "east_1",
+        "north_5"
+      ]
+    },
+    {
+      "id": "isle_2",
+      "name": "Thistlecay",
+      "terrain": "island",
+      "borders": [
+        "north_5"
+      ]
+    },
+    {
+      "id": "isle_3",
+      "name": "Windrift Atoll",
+      "terrain": "island",
+      "borders": [
+        "east_5",
+        "south_1"
+      ]
+    },
+    {
+      "id": "isle_4",
+      "name": "Saltmark Chain",
+      "terrain": "archipelago",
+      "borders": [
+        "isle_5",
+        "south_5",
+        "west_1"
+      ]
+    },
+    {
+      "id": "isle_5",
+      "name": "Verdant Shoal",
+      "terrain": "island",
+      "borders": [
+        "isle_4",
+        "pole_1"
+      ]
+    },
+    {
+      "id": "isle_6",
+      "name": "Ashcinder Rock",
+      "terrain": "volcanic_island",
+      "borders": [
+        "isle_7",
+        "west_5"
+      ]
+    },
+    {
+      "id": "isle_7",
+      "name": "Halcyon Keys",
+      "terrain": "archipelago",
+      "borders": [
+        "isle_6",
+        "pole_5"
+      ]
+    }
   ]
 }

@@ -12,7 +12,10 @@ from src.military import UNIT_TYPES, can_build_unit, resolve_combat
 from src.tech_tree import TECH_TREE, can_research, get_available_techs
 from src.diplomacy import run_conference, run_secret_meetings
 from src.agents.llm_agent import LLMAgent
-from src.map import capital_province, continent_province_ids
+from src.map import (
+    capital_province, continent_province_ids,
+    province_owner, provinces_adjacent, province_borders, is_island,
+)
 
 
 def build_agents(game_state) -> dict:
@@ -59,6 +62,10 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
         available_techs = get_available_techs(kingdom.unlocked_tech)
         buildable_units = [u for u in UNIT_TYPES if can_build_unit(u, kingdom.unlocked_tech)]
         own_provinces = continent_province_ids(kingdom.home_continent)
+        frontier = {
+            prov: province_borders(prov) for prov in own_provinces
+            if any(province_owner(b) != kingdom.id for b in province_borders(prov))
+        }
 
         prompt = (
             f"Turn {game_state.turn}. Your private state:\n{kingdom.private_summary()}\n\n"
@@ -72,22 +79,33 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
             f"Unit costs/upkeep reference: { {u: {'cost': d['cost'], 'upkeep': d['upkeep']} for u, d in UNIT_TYPES.items()} }\n"
             f"Your provinces (for troop movement): {own_provinces}\n"
             f"Current unit deployment by province: {kingdom.unit_positions}\n"
+            f"Your frontier provinces and what borders them beyond your own territory "
+            f"(the only places a single move can reach outside your kingdom): {frontier}\n"
             f"Your custom project in progress: {kingdom.custom_researching or 'none'}\n"
             f"Your completed custom projects: {[p['name'] for p in kingdom.custom_projects]}\n\n"
             "Decide this turn's action. You may set your tax rate (0.10-0.45), "
             "start researching one tech (or continue current research), "
             "build units (limited by treasury; new units appear at your capital "
-            f"province '{own_provinces[0]}'), move existing units between your own "
-            "provinces, invest money to repair stability, propose your OWN custom "
-            "project (a named invention with a cost and turn count you set -- must "
-            "cost at least $500B and take 1-15 turns, engine will validate affordability), "
-            "and/or request a secret meeting with one other kingdom by id. "
-            "You may also declare an attack on another kingdom if you're prepared to."
+            f"province '{own_provinces[0]}'), invest money to repair stability, propose "
+            "your OWN custom project (a named invention with a cost and turn count you "
+            "set -- must cost at least $500B and take 1-15 turns, engine will validate "
+            "affordability), and/or request a secret meeting with one other kingdom by id.\n\n"
+            "Movement/attack: 'move_units' moves one unit type between two DIRECTLY "
+            "ADJACENT provinces only (see the frontier map above and each other kingdom's "
+            "province borders) -- no teleporting across the map in one turn. Moving into "
+            "your own province is peaceful repositioning. Moving into a province belonging "
+            "to a kingdom you are at war with is an ATTACK: if enemy units are stationed "
+            "there, combat resolves this turn using only the forces actually present in "
+            "that province, not your whole army. You may also move onto an unclaimed "
+            "island adjacent to your territory to explore/claim it. You may declare war on "
+            "another kingdom this turn (declare_war_on) -- you cannot attack their "
+            "territory until you are at war with them."
         )
         schema = (
             '{"tax_rate": 0.0-1.0, "research": "tech_id or null", '
             '"build_units": {"unit_type": count, ...}, '
-            '"move_units": {"from": "province_id", "to": "province_id", "unit_type": "string", "count": int} or null, '
+            '"move_units": {"from": "province_id", "to": "adjacent province_id (own territory, enemy territory if at war, or an adjacent unclaimed island)", '
+            '"unit_type": "string", "count": int} or null, '
             '"repair_investment": number or null, '
             '"custom_project": {"name": "string", "description": "string", "category": "string", '
             '"proposed_cost": number, "proposed_turns": int} or null, '
@@ -173,27 +191,58 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
             if affordable_count < count:
                 applied.append(f"(could not afford {count - affordable_count}x {unit_type})")
 
-        # troop movement between own provinces -- validated so units can't
-        # teleport from a province they don't actually have forces in
+        # troop movement -- validated so units can't teleport from a province
+        # they don't actually have forces in, and can only move one hop along
+        # the real adjacency graph (data/map.json 'borders'). Moving into a
+        # province owned by a kingdom you're at war with is how an attack
+        # actually happens: it just places your units there. Combat itself
+        # (step 6, below) resolves locally from whatever units end up
+        # standing in the same province, not from kingdom-wide totals.
         move = decision.get("move_units")
         if move and isinstance(move, dict):
-            own_provinces = set(continent_province_ids(kingdom.home_continent))
             src, dst, unit_type = move.get("from"), move.get("to"), move.get("unit_type")
             try:
                 move_count = int(move.get("count", 0))
             except (TypeError, ValueError):
                 move_count = 0
+
+            has_forces = kingdom.unit_positions.get(src, {}).get(unit_type, 0) >= move_count
+            adjacent = isinstance(src, str) and isinstance(dst, str) and provinces_adjacent(src, dst)
+            dst_owner = province_owner(dst) if isinstance(dst, str) else None
+            move_allowed = (
+                dst_owner == kingdom.id  # peaceful move within own territory
+                or dst_owner is None  # unclaimed island (explore/claim)
+                or dst_owner in kingdom.at_war_with  # attack: enemy territory, only if at war
+            )
+
             if (
-                src in own_provinces and dst in own_provinces and unit_type in UNIT_TYPES
-                and move_count > 0
-                and kingdom.unit_positions.get(src, {}).get(unit_type, 0) >= move_count
+                unit_type in UNIT_TYPES and move_count > 0
+                and has_forces and adjacent and move_allowed
             ):
                 kingdom.unit_positions[src][unit_type] -= move_count
                 kingdom.unit_positions.setdefault(dst, {})
                 kingdom.unit_positions[dst][unit_type] = (
                     kingdom.unit_positions[dst].get(unit_type, 0) + move_count
                 )
-                applied.append(f"moved {move_count}x {unit_type} from {src} to {dst}")
+                verb = "attacked into" if dst_owner in kingdom.at_war_with else "moved into"
+                applied.append(f"{verb} {dst} with {move_count}x {unit_type} (from {src})")
+
+                # uncontested move onto an unclaimed island claims it
+                if dst_owner is None and is_island(dst):
+                    island = game_state.unclaimed_islands.get(dst)
+                    others_present = any(
+                        oid != kid and other.unit_positions.get(dst, {})
+                        for oid, other in game_state.kingdoms.items()
+                    )
+                    if island and island.get("controlled_by") is None and not others_present:
+                        island["controlled_by"] = kid
+                        applied.append(f"claimed unclaimed island {dst}")
+            elif not move_allowed:
+                applied.append(f"(cannot move into {dst} -- not at war with {dst_owner})")
+            elif not adjacent:
+                applied.append(f"(move rejected: {dst} does not border {src})")
+            elif not has_forces:
+                applied.append(f"(move rejected: no {unit_type} stationed at {src})")
 
         # repair investment -- spend money to actively recover stability
         # after unrest/riots instead of just waiting on natural recovery
@@ -272,28 +321,66 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
 
         log_lines.append(f"- **{kingdom.name}**: " + (", ".join(applied) if applied else "no action"))
 
-    # 6. Combat resolution for any active wars (simple: if at war, a skirmish happens this turn)
+    # 6. Combat resolution -- fought province by province from actual troop
+    # positions (unit_positions), not kingdom-wide totals. A battle only
+    # happens where two kingdoms that are at war both have live units
+    # standing in the SAME province this turn (which move_units, above, is
+    # the only way to cause). Losses are applied both to that province's
+    # unit_positions and to the kingdom's aggregate `units` total, so the
+    # two stay in sync.
     log_lines.append("\n## Combat\n")
-    resolved_pairs = set()
+
+    # province_id -> {kingdom_id: {unit_type: count}}, live (>0) units only
+    province_presence: dict[str, dict[str, dict]] = {}
     for kid, kingdom in game_state.kingdoms.items():
-        for enemy_id in kingdom.at_war_with:
-            pair_key = "|".join(sorted([kid, enemy_id]))
-            if pair_key in resolved_pairs:
-                continue
-            resolved_pairs.add(pair_key)
-            enemy = game_state.kingdoms[enemy_id]
-            result = resolve_combat(kingdom.units, enemy.units)
-            if result["outcome"] == "no_combat":
-                continue
-            for u, lost in result["attacker_losses"].items():
-                kingdom.units[u] = max(0, kingdom.units.get(u, 0) - lost)
-            for u, lost in result["defender_losses"].items():
-                enemy.units[u] = max(0, enemy.units.get(u, 0) - lost)
-            log_lines.append(
-                f"- **{kingdom.name} vs {enemy.name}**: {result['outcome']} "
-                f"(atk power {result['attacker_power']}, def power {result['defender_power']}) -- "
-                f"{kingdom.name} lost {result['attacker_losses']}, {enemy.name} lost {result['defender_losses']}"
-            )
+        for prov_id, units in kingdom.unit_positions.items():
+            live = {u: c for u, c in units.items() if c > 0}
+            if live:
+                province_presence.setdefault(prov_id, {})[kid] = live
+
+    any_combat = False
+    for prov_id, presence in province_presence.items():
+        occupants = list(presence.keys())
+        for i in range(len(occupants)):
+            for j in range(i + 1, len(occupants)):
+                k1, k2 = occupants[i], occupants[j]
+                if k2 not in game_state.kingdoms[k1].at_war_with:
+                    continue  # present in the same province but not at war -- no fight
+
+                owner = province_owner(prov_id)
+                if owner == k1:
+                    attacker_id, defender_id = k2, k1
+                elif owner == k2:
+                    attacker_id, defender_id = k1, k2
+                else:
+                    # neutral ground (unclaimed island): no home-turf side,
+                    # so no terrain bonus and a stable, arbitrary ordering
+                    attacker_id, defender_id = sorted([k1, k2])
+                attacker, defender = game_state.kingdoms[attacker_id], game_state.kingdoms[defender_id]
+                terrain_bonus = 1.15 if owner == defender_id else 1.0
+
+                result = resolve_combat(
+                    presence[attacker_id], presence[defender_id], defender_terrain_bonus=terrain_bonus
+                )
+                if result["outcome"] == "no_combat":
+                    continue
+                any_combat = True
+
+                for u, lost in result["attacker_losses"].items():
+                    attacker.unit_positions[prov_id][u] = max(0, attacker.unit_positions[prov_id].get(u, 0) - lost)
+                    attacker.units[u] = max(0, attacker.units.get(u, 0) - lost)
+                for u, lost in result["defender_losses"].items():
+                    defender.unit_positions[prov_id][u] = max(0, defender.unit_positions[prov_id].get(u, 0) - lost)
+                    defender.units[u] = max(0, defender.units.get(u, 0) - lost)
+
+                log_lines.append(
+                    f"- **{prov_id}**: {attacker.name} (attacking) vs {defender.name} (defending) -- "
+                    f"{result['outcome']} (atk power {result['attacker_power']}, def power {result['defender_power']}) -- "
+                    f"{attacker.name} lost {result['attacker_losses'] or 'nothing'}, "
+                    f"{defender.name} lost {result['defender_losses'] or 'nothing'}"
+                )
+    if not any_combat:
+        log_lines.append("_(no opposing forces shared a province this turn)_")
 
     log_text = "\n".join(log_lines)
     Path(log_dir).mkdir(parents=True, exist_ok=True)

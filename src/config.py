@@ -8,13 +8,18 @@ STARTING_TREASURY = 100_000_000_000_000  # $100 trillion
 STARTING_POPULATION = 50_000_000
 STARTING_FOOD_STORAGE = 5_000_000_000  # tons, arbitrary unit
 
-# Free/cheap OpenRouter models as of mid-2026. Availability and exact ids on
-# OpenRouter rotate -- check https://openrouter.ai/models?order=pricing-low
-# and swap the string here if one goes stale. ":free" suffix = zero cost tier.
+# OpenRouter's free-model catalog rotates constantly -- specific model slugs
+# (deepseek-v4, kimi-k2.6, etc.) get renamed or retired without warning. Using
+# "openrouter/free" (OpenRouter's own auto-router) always resolves to
+# WHATEVER free model is currently live, so it can never 404 on a stale name.
+# If you want a specific named model instead, copy its exact slug from
+# https://openrouter.ai/models?max_price=0 (reflects what's actually live
+# right now) -- llm_agent.py will automatically fall back to "openrouter/free"
+# if that specific slug ever 404s, so a stale name won't crash the game.
 KINGDOMS = {
     "north": {
         "name": "Kingdom of the North",
-        "model": "deepseek/deepseek-v4:free",
+        "model": "openrouter/free",
         "personality": (
             "Pragmatic industrial strategist. Favors steady economic growth, "
             "efficient infrastructure, and calculated military buildup over risk-taking."
@@ -22,7 +27,7 @@ KINGDOMS = {
     },
     "east": {
         "name": "Eastern Dominion",
-        "model": "moonshotai/kimi-k2.6:free",
+        "model": "openrouter/free",
         "personality": (
             "Opportunistic and adaptive. Watches other kingdoms closely, quick to "
             "propose or break alliances when it sees advantage."
@@ -30,7 +35,7 @@ KINGDOMS = {
     },
     "south": {
         "name": "Southern Republic",
-        "model": "qwen/qwen3.6:free",
+        "model": "openrouter/free",
         "personality": (
             "Diplomacy-first. Prefers trade deals, research cooperation, and "
             "coalition-building over unilateral military spending."
@@ -38,23 +43,24 @@ KINGDOMS = {
     },
     "west": {
         "name": "Western Alliance",
-        "model": "z-ai/glm-5.1:free",
+        "model": "openrouter/free",
         "personality": (
             "Defensive and cautious. Prioritizes food security, population "
             "welfare, and fortification; slow to commit to offensive wars."
         ),
     },
-    # South pole kingdom -- reserved for YOUR own LLM. Defaults to a local
-    # Ollama model (free, runs on your machine, no API key needed) -- see
-    # README for the one-time setup. Swap to "groq/llama-3.3-70b-versatile"
-    # for faster free-tier inference, "custom/your-model-id" for something
-    # you host yourself, or any OpenRouter model string if you'd rather test
-    # with a frontier model first. This kingdom gets real strategic
+    # South pole kingdom -- reserved for YOUR own LLM. Defaults to
+    # "openrouter/free" so the game runs immediately with zero setup. For a
+    # truly free, fully local option instead, install Ollama
+    # (https://ollama.com/download), run `ollama pull llama3.1`, then change
+    # the model string below to "ollama/llama3.1" -- no API key needed.
+    # "groq/llama-3.3-70b-versatile" is another free option (needs GROQ_API_KEY,
+    # much faster than most local setups). This kingdom gets real strategic
     # advantages defined below (intel, research speed, tech head start) --
     # none of which are ever mentioned to the other four kingdoms' prompts.
     "player_llm": {
         "name": "The Frozen Reach",
-        "model": "ollama/llama3.1",
+        "model": "openrouter/free",
         "personality": (
             "An empire-builder in the mold of Napoleon and Alexander: relentlessly "
             "expansionist, decisive, and opportunistic, but always in service of a "
@@ -89,5 +95,5 @@ MAP_RNG_SEED = 42  # change this for a different randomized resource layout each
 PHASES = ["economy_tick", "private_planning", "conference", "secret_meetings", "resolution"]
 
 # Diplomacy limits (to stop context/token blowup, not a "real" game rule)
-MAX_CONFERENCE_MESSAGES_PER_KINGDOM_PER_TURN = 4
-MAX_SECRET_MEETINGS_PER_TURN = 4
+MAX_CONFERENCE_MESSAGES_PER_KINGDOM_PER_TURN = 2
+MAX_SECRET_MEETINGS_PER_TURN = 3

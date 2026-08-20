@@ -60,9 +60,20 @@ def render_map_html(game_state) -> str:
 
     # Build full exact data for every kingdom -- you're the spectator, you
     # always get the real numbers, not the noisy version kingdoms show each other.
+    # Every province id -> display name, across all continents and islands,
+    # so a kingdom's forces stationed abroad (an invasion, or a claimed
+    # island) can still be labeled properly instead of just showing a raw id.
+    province_names = {}
+    for cont in world["continents"].values():
+        for p in cont["provinces"]:
+            province_names[p["id"]] = p["name"]
+    for isle in world["unclaimed_islands"]:
+        province_names[isle["id"]] = isle["name"]
+
     kingdom_data = {}
     for kid, k in game_state.kingdoms.items():
         cont = world["continents"][k.home_continent]
+        home_province_ids = {p["id"] for p in cont["provinces"]}
         provinces = []
         for prov in cont["provinces"]:
             units_here = k.unit_positions.get(prov["id"], {})
@@ -71,6 +82,16 @@ def render_map_html(game_state) -> str:
                 "terrain": prov["terrain"].replace("_", " ").title(),
                 "units": {u: c for u, c in units_here.items() if c > 0},
             })
+        # Forces stationed outside home territory -- invasions in progress,
+        # staging at a chokepoint, or units sitting on a claimed island.
+        forces_abroad = []
+        for prov_id, units_here in k.unit_positions.items():
+            if prov_id in home_province_ids:
+                continue
+            live = {u: c for u, c in units_here.items() if c > 0}
+            if live:
+                forces_abroad.append({"name": province_names.get(prov_id, prov_id), "units": live})
+
         # Infrastructure shown visually is derived from actually-unlocked
         # tech, not decoration -- if you don't have the tech, you don't get
         # the icon.
@@ -108,6 +129,7 @@ def render_map_html(game_state) -> str:
             "alliances": k.alliances or ["(none)"],
             "at_war_with": k.at_war_with or ["(none)"],
             "provinces": provinces,
+            "forces_abroad": forces_abroad,
         }
 
     hotspot_divs = []
@@ -125,8 +147,13 @@ def render_map_html(game_state) -> str:
         """)
 
     island_chips = "".join(
-        f"<span class='island-chip'>{isle['name']}</span>"
+        (
+            f"<span class='island-chip' style='border-color:{KINGDOM_COLORS.get(controlled_by, '#475569')}'>"
+            f"{isle['name']}" + (f" ({game_state.kingdoms[controlled_by].name})" if controlled_by else "") +
+            "</span>"
+        )
         for isle in world["unclaimed_islands"]
+        for controlled_by in [game_state.unclaimed_islands.get(isle["id"], {}).get("controlled_by")]
     )
 
     conference_html = "".join(
@@ -313,17 +340,19 @@ def render_map_html(game_state) -> str:
               </span>`;
     }}
 
+    function renderUnitBadge(u, c, color) {{
+      const meta = UNIT_ICONS[u] || {{ cls: "ground", label: u, svg: '' }};
+      return `<span class="unit-badge">
+                <span class="unit-icon ${{meta.cls}}" style="color:${{color}}">${{meta.svg}}</span>
+                ${{meta.label}} x${{c}}
+              </span>`;
+    }}
+
     function showKingdom(kid) {{
       const d = KINGDOM_DATA[kid];
       let provincesHtml = d.provinces.map(p => {{
         let unitsHtml = Object.keys(p.units).length
-          ? Object.entries(p.units).map(([u,c]) => {{
-              const meta = UNIT_ICONS[u] || {{ cls: "ground", label: u, svg: '' }};
-              return `<span class="unit-badge">
-                        <span class="unit-icon ${{meta.cls}}" style="color:${{d.color}}">${{meta.svg}}</span>
-                        ${{meta.label}} x${{c}}
-                      </span>`;
-            }}).join('')
+          ? Object.entries(p.units).map(([u,c]) => renderUnitBadge(u, c, d.color)).join('')
           : '<span class="empty">no units stationed</span>';
         return `<div class="province-card">
                   <div class="pname">${{p.name}}</div>
@@ -348,14 +377,23 @@ def render_map_html(game_state) -> str:
         <div class="stat-row"><span class="stat-label">Custom project in progress</span><span>${{d.custom_researching}}</span></div>
         <div class="stat-row"><span class="stat-label">Tech unlocked</span><span>${{d.unlocked_tech.length}}</span></div>
         <div class="stat-row"><span class="stat-label">At war with</span><span>${{d.at_war_with.join(', ')}}</span></div>
-        <h3 style="margin-top:16px; margin-bottom:4px;">Completed Custom Inventions</h3>
-        <div style="font-size:12px;">${{d.custom_projects.map(p => `<div style="padding:4px 0;border-bottom:1px solid #334155;">${{p}}</div>`).join('')}}</div>
         <h3 style="margin-top:16px; margin-bottom:4px;">Infrastructure</h3>
         <div>${{d.infrastructure.length ? d.infrastructure.map(renderInfraRow).join('') : '<span class="empty">no infrastructure tech unlocked yet</span>'}}</div>
+        <h3 style="margin-top:16px; margin-bottom:4px;">Completed Custom Inventions</h3>
+        <div style="font-size:12px;">${{d.custom_projects.map(p => `<div style="padding:4px 0;border-bottom:1px solid #334155;">${{p}}</div>`).join('')}}</div>
         <h3 style="margin-top:16px; margin-bottom:4px;">Resources</h3>
         <div class="resource-grid">${{resourcesHtml}}</div>
         <h3 style="margin-top:16px; margin-bottom:4px;">Provinces & Deployed Units</h3>
         ${{provincesHtml}}
+        ${{d.forces_abroad.length ? `
+          <h3 style="margin-top:16px; margin-bottom:4px; color:#f87171;">Forces Abroad (invading / staged / claimed)</h3>
+          ${{d.forces_abroad.map(f => `
+            <div class="province-card" style="border-color:#f87171;">
+              <div class="pname">${{f.name}}</div>
+              <div>${{Object.entries(f.units).map(([u,c]) => renderUnitBadge(u, c, d.color)).join('')}}</div>
+            </div>
+          `).join('')}}
+        ` : ''}}
       `;
       document.getElementById('kingdom-panel').classList.add('open');
     }}

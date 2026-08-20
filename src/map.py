@@ -114,3 +114,48 @@ def capital_province(continent_id: str) -> str:
 def continent_province_ids(continent_id: str) -> list:
     world = json.loads(MAP_PATH.read_text())
     return [p["id"] for p in world["continents"][continent_id]["provinces"]]
+
+
+def province_owner(province_id: str, world: dict | None = None) -> str | None:
+    """Kingdom id that owns this province's continent, or None if it's an
+    unclaimed island (or an unrecognized id). Ownership here is tracked at
+    the continent level -- there's no per-province conquest/capture yet,
+    so a battle won on foreign soil doesn't currently change who 'owns' it.
+    """
+    world = world or load_map()
+    for cont_id, cont in world["continents"].items():
+        if any(p["id"] == province_id for p in cont["provinces"]):
+            return cont["owner"]
+    return None  # unclaimed island, or unknown id
+
+
+def is_island(province_id: str, world: dict | None = None) -> bool:
+    world = world or load_map()
+    return any(isle["id"] == province_id for isle in world["unclaimed_islands"])
+
+
+def provinces_adjacent(a: str, b: str, world: dict | None = None) -> bool:
+    """True if a and b directly border each other per data/map.json's
+    'borders' lists. This is the only way a single move_units action can
+    move (or attack) from one location to another -- no teleporting across
+    the map in one turn, and no attacking a kingdom you can't reach yet."""
+    world = world or load_map()
+    borders = _province_borders_index(world)
+    return b in borders.get(a, set()) or a in borders.get(b, set())
+
+
+def province_borders(province_id: str, world: dict | None = None) -> list:
+    """List of province/island ids directly adjacent to this one -- the
+    only valid single-hop move/attack targets from here."""
+    world = world or load_map()
+    return sorted(_province_borders_index(world).get(province_id, set()))
+
+
+def _province_borders_index(world: dict) -> dict:
+    index = {}
+    for cont in world["continents"].values():
+        for p in cont["provinces"]:
+            index[p["id"]] = set(p.get("borders", []))
+    for isle in world["unclaimed_islands"]:
+        index[isle["id"]] = set(isle.get("borders", []))
+    return index

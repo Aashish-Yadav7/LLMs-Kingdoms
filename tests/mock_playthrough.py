@@ -25,10 +25,24 @@ from src.orchestrator import run_turn
 class MockAgent:
     """Fakes an LLM's decisions with simple scripted/random behavior -- just
     enough variety to exercise every part of the engine (builds, research,
-    movement, diplomacy, occasional war) without calling any API."""
+    movement, diplomacy, occasional war) without calling any API.
 
-    def __init__(self, kid):
+    Turns 1-2: everyone builds up infantry at their capital (north's capital
+      is north_1, the first province in data/map.json's north list).
+    Turn 3: 'north' declares war on 'east'.
+    Turns 4-6: 'north' marches infantry along the real adjacency chain
+      (north_1 -> north_5 -> isle_1 -> east_1), exercising multi-hop
+      movement and, once it lands on east's soil while at war,
+      position-based combat.
+    This is scripted around this repo's actual data/map.json borders, so if
+    the map data ever changes, update the path below to match. Run with
+    --turns 7 or more to see it play out (war on turn 3, landing on turn 6,
+    combat visible in logs/turn_6.md).
+    """
+
+    def __init__(self, kid, game_state):
         self.kid = kid
+        self.game_state = game_state
 
     def decide(self, prompt, schema_hint):
         if "SECRET meeting" in prompt:
@@ -40,8 +54,9 @@ class MockAgent:
                 "speak": random.random() < 0.4,
                 "message": f"Greetings from {self.kid}. We seek prosperity, not conflict.",
             }
-        # main turn decision
-        return {
+
+        turn = self.game_state.turn  # run_turn() increments turn before agents decide
+        decision = {
             "tax_rate": round(random.uniform(0.18, 0.32), 2),
             "research": "combustion_engines",
             "build_units": {"infantry": random.randint(50, 200)},
@@ -53,11 +68,27 @@ class MockAgent:
             "reasoning": "mock agent test action",
         }
 
+        if self.kid == "north":
+            if turn == 3:
+                decision["declare_war_on"] = "east"
+                decision["reasoning"] = "scripted: opening hostilities with east"
+            elif turn == 4:
+                decision["move_units"] = {"from": "north_1", "to": "north_5", "unit_type": "infantry", "count": 150}
+                decision["reasoning"] = "scripted: marching the invasion force from the capital to the frontier"
+            elif turn == 5:
+                decision["move_units"] = {"from": "north_5", "to": "isle_1", "unit_type": "infantry", "count": 150}
+                decision["reasoning"] = "scripted: staging at the isle_1 chokepoint"
+            elif turn == 6:
+                decision["move_units"] = {"from": "isle_1", "to": "east_1", "unit_type": "infantry", "count": 150}
+                decision["reasoning"] = "scripted: landing the invasion on east's soil -- combat should trigger"
+
+        return decision
+
 
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Run a mock (no-API) playthrough to test the engine.")
-    parser.add_argument("--turns", type=int, default=10, help="How many turns to simulate (default 10)")
+    parser.add_argument("--turns", type=int, default=10, help="How many turns to simulate (default 10, minimum 6 to see the scripted invasion play out)")
     args = parser.parse_args()
 
     print("=== Kingdoms AI: mock playthrough (no API calls) ===\n")
@@ -70,7 +101,7 @@ def main():
               f"treasury=${k.treasury:,.0f} | resources={total_res:,}")
     print()
 
-    agents = {kid: MockAgent(kid) for kid in game_state.kingdoms}
+    agents = {kid: MockAgent(kid, game_state) for kid in game_state.kingdoms}
 
     for turn in range(args.turns):
         print(f"--- Running turn {turn + 1}/{args.turns} ---")

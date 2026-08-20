@@ -18,6 +18,7 @@ import os
 import re
 import time
 
+import openai
 from openai import OpenAI
 
 from src.agents.base_agent import BaseAgent
@@ -87,28 +88,55 @@ class LLMAgent(BaseAgent):
             "Respond with ONLY a single JSON object, no prose, no markdown fences, "
             f"matching this shape:\n{schema_hint}"
         )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
 
-        last_error = None
-        for attempt in range(max_retries):
-            try:
-                response = self.client.chat.completions.create(
-                    model=self.model_id,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt},
-                    ],
-                    temperature=0.8,
-                )
-                text = response.choices[0].message.content
-                return _extract_json(text)
-            except Exception as e:
-                last_error = e
-                time.sleep(2 ** attempt)  # backoff for rate limits (429s on free tiers)
-
-        # If the model fails entirely, fall back to a safe no-op so the game
-        # loop doesn't crash on one kingdom's bad turn.
-        print(f"[WARN] {self.kingdom_name} ({self.model}) failed after retries: {last_error}")
-        return {"action": "pass", "reasoning": f"agent_error: {last_error}"}
+        # A 404 (model doesn't exist / was renamed) or a connection failure
+        # (e.g. Ollama isn't running) will NEVER succeed on retry -- retrying
+        # those with backoff just burns real time for a guaranteed failure.
+        # Only genuinely transient errors (rate limits, timeouts) get the
+        # retry treatment; everything else fails fast.
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model_id, messages=messages, temperature=0.8,
+            )
+            return _extract_json(response.choices[0].message.content)
+        except openai.NotFoundError as e:
+            # Model slug is stale/wrong. If this wasn't already a call to
+            # OpenRouter's auto-router, try that exactly once before giving up
+            # -- "openrouter/free" always resolves to something live.
+            is_openrouter_call = self.client.base_url and "openrouter.ai" in str(self.client.base_url)
+            if is_openrouter_call and self.model_id != "openrouter/free":
+                print(f"[WARN] {self.kingdom_name}: model '{self.model_id}' not found, "
+                      f"falling back to openrouter/free for this turn.")
+                try:
+                    response = self.client.chat.completions.create(
+                        model="openrouter/free", messages=messages, temperature=0.8,
+                    )
+                    return _extract_json(response.choices[0].message.content)
+                except Exception as e2:
+                    print(f"[WARN] {self.kingdom_name}: fallback also failed: {e2}")
+                    return {"action": "pass", "reasoning": f"agent_error: {e2}"}
+            print(f"[WARN] {self.kingdom_name} ({self.model}): model not found -- {e}")
+            return {"action": "pass", "reasoning": f"agent_error: model not found"}
+        except (openai.APIConnectionError, ConnectionError) as e:
+            print(f"[WARN] {self.kingdom_name} ({self.model}): can't connect -- is it running/reachable? {e}")
+            return {"action": "pass", "reasoning": "agent_error: connection failed"}
+        except Exception as e:
+            last_error = e
+            for attempt in range(max_retries - 1):
+                time.sleep(2 ** attempt)  # backoff, for genuinely transient errors like 429s
+                try:
+                    response = self.client.chat.completions.create(
+                        model=self.model_id, messages=messages, temperature=0.8,
+                    )
+                    return _extract_json(response.choices[0].message.content)
+                except Exception as e2:
+                    last_error = e2
+            print(f"[WARN] {self.kingdom_name} ({self.model}) failed after retries: {last_error}")
+            return {"action": "pass", "reasoning": f"agent_error: {last_error}"}
 
 
 def _extract_json(text: str) -> dict:
