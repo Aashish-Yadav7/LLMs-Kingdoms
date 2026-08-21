@@ -36,6 +36,12 @@ PROVIDER_PREFIXES = {
         "api_key_env": "GROQ_API_KEY",
         "default_api_key": None,
     },
+    "cerebras/": {
+        "base_url_env": "CEREBRAS_BASE_URL",
+        "default_base_url": "https://api.cerebras.ai/v1",
+        "api_key_env": "CEREBRAS_API_KEY",
+        "default_api_key": None,
+    },
     "custom/": {
         "base_url_env": "CUSTOM_MODEL_BASE_URL",
         "default_base_url": None,

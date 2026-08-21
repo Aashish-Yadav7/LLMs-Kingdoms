@@ -19,7 +19,7 @@ STARTING_FOOD_STORAGE = 5_000_000_000  # tons, arbitrary unit
 KINGDOMS = {
     "north": {
         "name": "Kingdom of the North",
-        "model": "openrouter/free",
+        "model": "cerebras/gpt-oss-120b",
         "personality": (
             "Pragmatic industrial strategist. Favors steady economic growth, "
             "efficient infrastructure, and calculated military buildup over risk-taking."
@@ -27,7 +27,7 @@ KINGDOMS = {
     },
     "east": {
         "name": "Eastern Dominion",
-        "model": "openrouter/free",
+        "model": "cerebras/gpt-oss-120b",
         "personality": (
             "Opportunistic and adaptive. Watches other kingdoms closely, quick to "
             "propose or break alliances when it sees advantage."
@@ -35,7 +35,7 @@ KINGDOMS = {
     },
     "south": {
         "name": "Southern Republic",
-        "model": "openrouter/free",
+        "model": "cerebras/gpt-oss-120b",
         "personality": (
             "Diplomacy-first. Prefers trade deals, research cooperation, and "
             "coalition-building over unilateral military spending."
@@ -43,7 +43,7 @@ KINGDOMS = {
     },
     "west": {
         "name": "Western Alliance",
-        "model": "openrouter/free",
+        "model": "cerebras/gpt-oss-120b",
         "personality": (
             "Defensive and cautious. Prioritizes food security, population "
             "welfare, and fortification; slow to commit to offensive wars."
@@ -60,7 +60,7 @@ KINGDOMS = {
     # none of which are ever mentioned to the other four kingdoms' prompts.
     "player_llm": {
         "name": "The Frozen Reach",
-        "model": "openrouter/free",
+        "model": "cerebras/gpt-oss-120b",
         "personality": (
             "An empire-builder in the mold of Napoleon and Alexander: relentlessly "
             "expansionist, decisive, and opportunistic, but always in service of a "
@@ -95,5 +95,5 @@ MAP_RNG_SEED = 42  # change this for a different randomized resource layout each
 PHASES = ["economy_tick", "private_planning", "conference", "secret_meetings", "resolution"]
 
 # Diplomacy limits (to stop context/token blowup, not a "real" game rule)
-MAX_CONFERENCE_MESSAGES_PER_KINGDOM_PER_TURN = 2
-MAX_SECRET_MEETINGS_PER_TURN = 3
+MAX_CONFERENCE_MESSAGES_PER_KINGDOM_PER_TURN = 5
+MAX_SECRET_MEETINGS_PER_TURN = 5
