@@ -49,18 +49,18 @@ KINGDOMS = {
             "welfare, and fortification; slow to commit to offensive wars."
         ),
     },
-    # South pole kingdom -- reserved for YOUR own LLM. Defaults to
-    # "openrouter/free" so the game runs immediately with zero setup. For a
-    # truly free, fully local option instead, install Ollama
-    # (https://ollama.com/download), run `ollama pull llama3.1`, then change
-    # the model string below to "ollama/llama3.1" -- no API key needed.
-    # "groq/llama-3.3-70b-versatile" is another free option (needs GROQ_API_KEY,
-    # much faster than most local setups). This kingdom gets real strategic
-    # advantages defined below (intel, research speed, tech head start) --
-    # none of which are ever mentioned to the other four kingdoms' prompts.
+    # South pole kingdom -- reserved for YOUR own LLM. Set to NVIDIA Build
+    # (NIM) since that's the key you have -- free, hosts 100+ open models.
+    # "meta/llama-3.1-70b-instruct" below is a solid stable default; swap to
+    # any model listed at https://build.nvidia.com/models (format is
+    # "nvidia/<provider>/<model-name>" -- note the double slash, that's
+    # correct, NVIDIA's own model names contain a slash too). This kingdom
+    # gets real strategic advantages defined below (intel, research speed,
+    # tech head start) -- none of which are ever mentioned to the other
+    # four kingdoms' prompts.
     "player_llm": {
         "name": "The Frozen Reach",
-        "model": "cerebras/gpt-oss-120b",
+        "model": "nvidia/meta/llama-3.1-70b-instruct",
         "personality": (
             "An empire-builder in the mold of Napoleon and Alexander: relentlessly "
             "expansionist, decisive, and opportunistic, but always in service of a "

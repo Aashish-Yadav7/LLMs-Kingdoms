@@ -42,6 +42,12 @@ PROVIDER_PREFIXES = {
         "api_key_env": "CEREBRAS_API_KEY",
         "default_api_key": None,
     },
+    "nvidia/": {
+        "base_url_env": "NVIDIA_BASE_URL",
+        "default_base_url": "https://integrate.api.nvidia.com/v1",
+        "api_key_env": "NVIDIA_API_KEY",
+        "default_api_key": None,
+    },
     "custom/": {
         "base_url_env": "CUSTOM_MODEL_BASE_URL",
         "default_base_url": None,
