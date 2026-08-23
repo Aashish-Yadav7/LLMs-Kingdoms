@@ -122,7 +122,7 @@ class LLMAgent(BaseAgent):
 
         candidates = [self.model] + [m for m in FALLBACK_CHAIN if m != self.model]
 
-        last_error = None
+        attempt_errors = []  # (candidate, error) for every real attempt -- not just the last
         for candidate in candidates:
             resolved = _resolve(candidate)
             if resolved is None:
@@ -137,11 +137,16 @@ class LLMAgent(BaseAgent):
                     print(f"[INFO] {self.kingdom_name}: '{self.model}' unavailable, used fallback '{candidate}' instead.")
                 return _extract_json(response.choices[0].message.content)
             except Exception as e:
-                last_error = e
+                attempt_errors.append((candidate, e))
                 continue
 
-        print(f"[WARN] {self.kingdom_name}: every configured/fallback provider failed. Last error: {last_error}")
-        return {"action": "pass", "reasoning": f"agent_error: all providers failed, last: {last_error}"}
+        if attempt_errors:
+            print(f"[WARN] {self.kingdom_name}: every provider failed. Full breakdown:")
+            for candidate, err in attempt_errors:
+                print(f"    - {candidate}: {err}")
+        else:
+            print(f"[WARN] {self.kingdom_name}: no provider had a usable key/config at all -- check your .env")
+        return {"action": "pass", "reasoning": "agent_error: all providers failed, see console for per-provider breakdown"}
 
 
 def _extract_json(text: str) -> dict:

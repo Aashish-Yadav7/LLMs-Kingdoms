@@ -26,6 +26,8 @@ def run_conference(game_state, agents: dict) -> list:
                 f"Conference so far this turn:\n{transcript}\n\n"
                 "You may send ONE public message (propose an alliance, make a threat, "
                 "announce a trade offer, or say nothing meaningful). Keep it to 1-3 sentences. "
+                "Always speak in first person as your kingdom's ruler ('I' or 'we') -- never "
+                "narrate about your own kingdom in the third person. "
                 "If you have nothing to add, set 'speak' to false."
             )
             schema = '{"speak": true/false, "message": "string, empty if speak is false"}'
@@ -74,7 +76,9 @@ def run_secret_meetings(game_state, agents: dict, requests: dict) -> dict:
                         "Nobody else will ever see this unless one of you reveals it later.\n"
                         f"Conversation so far:\n{exchange}\n\n"
                         "Say what you want to (propose an alliance, plan a joint attack, "
-                        "negotiate a trade, or share intel). 1-3 sentences."
+                        "negotiate a trade, or share intel). 1-3 sentences. Always speak in "
+                        "first person ('I' or 'we') -- never narrate about your own kingdom "
+                        "in the third person."
                     )
                     schema = '{"message": "string"}'
                     result = agents[speaker].decide(prompt, schema)
