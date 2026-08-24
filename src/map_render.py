@@ -1,15 +1,16 @@
 """
-Renders the god view as your ACTUAL map image with clickable region hotspots.
-Click a continent -> a side panel opens with that kingdom's full exact stats
-(you're the spectator/god, so you always see exact numbers for everyone,
-regardless of what the kingdoms show each other). A bottom panel is always
-visible with Public Conference and Secret Meetings, so you never have to
-click anything to see the diplomacy.
+God view, rebuilt around ONE persistent file: maps/game.html.
 
-No emoji anywhere -- some Windows font builds don't have glyphs for newer
-emoji (that's why you saw boxes like a military helmet icon rendering as a
-tofu square). Everything here is plain text + CSS-colored badges instead,
-which renders identically on every platform.
+Every turn, a small JSON snapshot of that turn's state (kingdom stats,
+conference, secret meetings, island ownership) is saved to
+maps/turn_data/turn_N.json. Then ALL snapshots found on disk -- from this
+session and any previous one, since games can now resume across sessions --
+get bundled into a single self-contained HTML file with a turn selector at
+the top. No more juggling separate turn_1.html, turn_2.html, ... tabs.
+
+The map image, hotspot layout, and unit/infrastructure icons are still
+embedded directly (base64 for the image, inline SVG for icons) so the whole
+thing keeps working with a plain double-click, no server needed.
 """
 
 import base64
@@ -18,6 +19,7 @@ from pathlib import Path
 
 MAP_PATH = Path(__file__).parent.parent / "data" / "map.json"
 MAP_IMAGE_PATH = Path(__file__).parent.parent / "data" / "world_map.png"
+SNAPSHOT_DIR = Path(__file__).parent.parent / "maps" / "turn_data"
 
 KINGDOM_COLORS = {
     "north": "#3b82f6",
@@ -28,10 +30,6 @@ KINGDOM_COLORS = {
     None: "#64748b",
 }
 
-# Percentage-based bounding boxes over data/world_map.png (1457x720), matched
-# to where each continent actually sits in the image. Tweak these if a box
-# doesn't line up with the landmass on your screen -- they're eyeballed
-# percentages, not pixel-perfect.
 CONTINENT_HOTSPOTS = {
     "north":      {"left": 0,  "top": 0,  "width": 22, "height": 45},
     "east":       {"left": 37, "top": 0,  "width": 28, "height": 24},
@@ -48,21 +46,7 @@ UNIT_LABELS = {
 }
 
 
-def render_map_html(game_state) -> str:
-    world = json.loads(MAP_PATH.read_text())
-
-    # Embed the map image directly as base64 -- this makes the HTML file
-    # fully self-contained, so it renders correctly no matter which folder
-    # you open/serve it from (double-click, or `python -m http.server` run
-    # from any directory). No external file path to break.
-    map_image_b64 = base64.b64encode(MAP_IMAGE_PATH.read_bytes()).decode("ascii")
-    map_image_data_uri = f"data:image/png;base64,{map_image_b64}"
-
-    # Build full exact data for every kingdom -- you're the spectator, you
-    # always get the real numbers, not the noisy version kingdoms show each other.
-    # Every province id -> display name, across all continents and islands,
-    # so a kingdom's forces stationed abroad (an invasion, or a claimed
-    # island) can still be labeled properly instead of just showing a raw id.
+def _build_kingdom_data(game_state, world: dict) -> dict:
     province_names = {}
     for cont in world["continents"].values():
         for p in cont["provinces"]:
@@ -82,8 +66,6 @@ def render_map_html(game_state) -> str:
                 "terrain": prov["terrain"].replace("_", " ").title(),
                 "units": {u: c for u, c in units_here.items() if c > 0},
             })
-        # Forces stationed outside home territory -- invasions in progress,
-        # staging at a chokepoint, or units sitting on a claimed island.
         forces_abroad = []
         for prov_id, units_here in k.unit_positions.items():
             if prov_id in home_province_ids:
@@ -92,9 +74,6 @@ def render_map_html(game_state) -> str:
             if live:
                 forces_abroad.append({"name": province_names.get(prov_id, prov_id), "units": live})
 
-        # Infrastructure shown visually is derived from actually-unlocked
-        # tech, not decoration -- if you don't have the tech, you don't get
-        # the icon.
         infrastructure = []
         if "combustion_engines" in k.unlocked_tech:
             infrastructure.append("motor_transport")
@@ -131,60 +110,92 @@ def render_map_html(game_state) -> str:
             "provinces": provinces,
             "forces_abroad": forces_abroad,
         }
+    return kingdom_data
 
-    hotspot_divs = []
-    label_divs = []
-    for cont_id, box in CONTINENT_HOTSPOTS.items():
-        owner_kid = world["continents"][cont_id]["owner"]
-        color = KINGDOM_COLORS.get(owner_kid, "#64748b")
-        name = game_state.kingdoms[owner_kid].name
-        hotspot_divs.append(f"""
-        <div class="hotspot" style="left:{box['left']}%; top:{box['top']}%; width:{box['width']}%; height:{box['height']}%; border-color:{color};"
-             onclick="showKingdom('{owner_kid}')" title="{name}"></div>
-        """)
-        label_divs.append(f"""
-        <div class="hotspot-label" style="left:{box['left']}%; top:{max(box['top']-3, 0)}%; color:{color};">{name}</div>
-        """)
 
-    island_chips = "".join(
-        (
-            f"<span class='island-chip' style='border-color:{KINGDOM_COLORS.get(controlled_by, '#475569')}'>"
-            f"{isle['name']}" + (f" ({game_state.kingdoms[controlled_by].name})" if controlled_by else "") +
-            "</span>"
-        )
-        for isle in world["unclaimed_islands"]
-        for controlled_by in [game_state.unclaimed_islands.get(isle["id"], {}).get("controlled_by")]
-    )
+def save_turn_snapshot(game_state, out_dir: Path = SNAPSHOT_DIR) -> Path:
+    """Call once per turn, right after resolution. Writes a small JSON file
+    capturing everything the viewer needs for THIS turn only."""
+    world = json.loads(MAP_PATH.read_text())
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    conference_html = "".join(
-        f"<div class='msg'><b style=\"color:{KINGDOM_COLORS.get(m['from'], '#fff')}\">{m['name']}:</b> {m['message']}</div>"
-        for m in game_state.conference_log
-    ) or "<div class='empty'>No public messages this turn.</div>"
+    snapshot = {
+        "turn": game_state.turn,
+        "kingdoms": _build_kingdom_data(game_state, world),
+        "conference": list(game_state.conference_log),
+        "secret_meetings": dict(game_state.secret_meeting_log),
+        "islands": {
+            isle_id: data.get("controlled_by")
+            for isle_id, data in game_state.unclaimed_islands.items()
+        },
+    }
+    path = out_dir / f"turn_{game_state.turn}.json"
+    path.write_text(json.dumps(snapshot), encoding="utf-8")
+    return path
 
-    secret_html = ""
-    for pair_key, exchange in game_state.secret_meeting_log.items():
-        ids = pair_key.split("|")
-        names = [game_state.kingdoms[i].name for i in ids]
-        secret_html += f"<div class='secret-block'><div class='secret-title'>[SECRET] {names[0]} <-> {names[1]} (hidden from other kingdoms)</div>"
-        for m in exchange:
-            speaker = game_state.kingdoms[m["from"]].name
-            secret_html += f"<div class='msg'><b>{speaker}:</b> {m['message']}</div>"
-        secret_html += "</div>"
-    if not secret_html:
-        secret_html = "<div class='empty'>No secret meetings this turn.</div>"
+
+def load_all_snapshots(snapshot_dir: Path = SNAPSHOT_DIR) -> dict:
+    """Loads every turn_N.json found (including earlier sessions, since
+    games can resume across runs), keyed by turn number."""
+    if not snapshot_dir.exists():
+        return {}
+    snapshots = {}
+    for path in snapshot_dir.glob("turn_*.json"):
+        try:
+            turn_num = int(path.stem.split("_")[-1])
+        except ValueError:
+            continue
+        snapshots[turn_num] = json.loads(path.read_text(encoding="utf-8"))
+    return dict(sorted(snapshots.items()))
+
+
+def render_game_html(all_snapshots: dict) -> str:
+    if not all_snapshots:
+        return "<html><body>No turns played yet.</body></html>"
+
+    world = json.loads(MAP_PATH.read_text())
+    map_image_b64 = base64.b64encode(MAP_IMAGE_PATH.read_bytes()).decode("ascii")
+    map_image_data_uri = f"data:image/png;base64,{map_image_b64}"
+
+    latest_turn = max(all_snapshots.keys())
+    latest = all_snapshots[latest_turn]
 
     legend_html = "".join(
-        f"<span class='legend-item'><span class='swatch' style='background:{KINGDOM_COLORS[kid]}'></span>{k.name}</span>"
-        for kid, k in game_state.kingdoms.items()
+        f"<span class='legend-item'><span class='swatch' style='background:{k['color']}'></span>{k['name']}</span>"
+        for k in latest["kingdoms"].values()
     )
 
-    kingdom_json = json.dumps(kingdom_data)
+    hotspot_divs, label_divs = [], []
+    for cont_id, box in CONTINENT_HOTSPOTS.items():
+        owner_kid = world["continents"][cont_id]["owner"]
+        owner = latest["kingdoms"].get(owner_kid, {})
+        color = owner.get("color", "#64748b")
+        name = owner.get("name", owner_kid)
+        hotspot_divs.append(
+            f'<div class="hotspot" style="left:{box["left"]}%; top:{box["top"]}%; '
+            f'width:{box["width"]}%; height:{box["height"]}%; border-color:{color};" '
+            f'onclick="showKingdom(\'{owner_kid}\')" title="{name}"></div>'
+        )
+        label_divs.append(
+            f'<div class="hotspot-label" style="left:{box["left"]}%; top:{max(box["top"]-3, 0)}%; color:{color};">{name}</div>'
+        )
+
+    island_names = {isle["id"]: isle["name"] for isle in world["unclaimed_islands"]}
+
+    turn_selector_html = "".join(
+        f'<button class="turn-btn" data-turn="{t}" onclick="showTurn({t})">Turn {t}</button>'
+        for t in sorted(all_snapshots.keys())
+    )
+
+    all_turns_json = json.dumps({str(t): snap for t, snap in all_snapshots.items()})
+    island_names_json = json.dumps(island_names)
+    kingdom_colors_json = json.dumps(KINGDOM_COLORS)
 
     return f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>Kingdoms AI -- Turn {game_state.turn}</title>
+<title>Kingdoms AI -- Full Game (Turns 1-{latest_turn})</title>
 <style>
   * {{ box-sizing: border-box; }}
   body {{ background:#0f172a; color:#e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; margin:0; padding:0; }}
@@ -192,6 +203,11 @@ def render_map_html(game_state) -> str:
   h1 {{ margin:0 0 8px 0; font-size:22px; }}
   .legend-item {{ margin-right:16px; font-size:13px; }}
   .swatch {{ display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:6px; vertical-align:middle; }}
+
+  .turn-selector {{ padding:10px 24px; background:#1e293b; display:flex; flex-wrap:wrap; gap:6px; position:sticky; top:0; z-index:60; }}
+  .turn-btn {{ background:#334155; color:#e2e8f0; border:none; border-radius:5px; padding:6px 12px; font-size:12px; cursor:pointer; }}
+  .turn-btn:hover {{ background:#475569; }}
+  .turn-btn.active {{ background:#3b82f6; font-weight:600; }}
 
   .map-wrap {{ position:relative; width:100%; max-width:1457px; margin:0 auto; }}
   .map-wrap img {{ width:100%; display:block; }}
@@ -205,7 +221,7 @@ def render_map_html(game_state) -> str:
   #kingdom-panel {{
     position:fixed; top:0; right:-420px; width:400px; height:100%; background:#1e293b;
     box-shadow:-4px 0 20px rgba(0,0,0,0.5); padding:20px; overflow-y:auto; transition:right 0.25s;
-    z-index:50; border-left:3px solid #475569;
+    z-index:70; border-left:3px solid #475569;
   }}
   #kingdom-panel.open {{ right:0; }}
   #kingdom-panel h2 {{ margin-top:0; }}
@@ -238,9 +254,11 @@ def render_map_html(game_state) -> str:
 </head>
 <body>
   <div class="topbar">
-    <h1>Kingdoms AI -- Turn {game_state.turn} (God View)</h1>
+    <h1 id="page-title">Kingdoms AI -- Turn {latest_turn} (God View)</h1>
     <div>{legend_html}</div>
   </div>
+
+  <div class="turn-selector" id="turn-selector">{turn_selector_html}</div>
 
   <div class="map-wrap">
     <img src="{map_image_data_uri}" alt="world map">
@@ -248,9 +266,7 @@ def render_map_html(game_state) -> str:
     {''.join(label_divs)}
   </div>
 
-  <div class="islands-bar">
-    <b>Unclaimed / Contested Islands:</b> {island_chips}
-  </div>
+  <div class="islands-bar" id="islands-bar"></div>
 
   <div id="kingdom-panel">
     <span class="close-btn" onclick="closePanel()">&times;</span>
@@ -259,18 +275,18 @@ def render_map_html(game_state) -> str:
 
   <div class="bottom-panel">
     <h3>Public Conference</h3>
-    {conference_html}
+    <div id="conference-content"></div>
     <h3 style="margin-top:16px;">Secret Meetings (only you see all of these)</h3>
-    {secret_html}
+    <div id="secret-content"></div>
   </div>
 
   <script>
-    const KINGDOM_DATA = {kingdom_json};
+    const ALL_TURNS = {all_turns_json};
+    const ISLAND_NAMES = {island_names_json};
+    const KINGDOM_COLORS = {kingdom_colors_json};
+    let currentTurn = "{latest_turn}";
+    let openKingdomId = null;
 
-    // Compact inline SVG icons per unit type -- no emoji (some Windows font
-    // builds are missing glyphs for newer emoji and render tofu boxes
-    // instead), pure vector so it looks identical on every machine, and
-    // cheap to animate via CSS classes (ground/air/naval).
     const UNIT_ICONS = {{
       infantry: {{ cls: "ground", label: "Infantry", svg: `
         <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2.4"/>
@@ -310,9 +326,6 @@ def render_map_html(game_state) -> str:
         <circle cx="14" cy="6" r="1.6"/><circle cx="19" cy="7" r="1.6"/></svg>` }},
     }};
 
-    // Infrastructure icons -- tied to real unlocked tech (see "infrastructure"
-    // field on each kingdom, computed in map_render.py from unlocked_tech),
-    // not just decoration.
     const INFRA_ICONS = {{
       motor_transport: {{ cls: "ground", label: "Motor Transport Network", svg: `
         <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="11" width="18" height="5" rx="2"/>
@@ -349,7 +362,11 @@ def render_map_html(game_state) -> str:
     }}
 
     function showKingdom(kid) {{
-      const d = KINGDOM_DATA[kid];
+      openKingdomId = kid;
+      const turnData = ALL_TURNS[currentTurn];
+      const d = turnData.kingdoms[kid];
+      if (!d) return;
+
       let provincesHtml = d.provinces.map(p => {{
         let unitsHtml = Object.keys(p.units).length
           ? Object.entries(p.units).map(([u,c]) => renderUnitBadge(u, c, d.color)).join('')
@@ -367,7 +384,7 @@ def render_map_html(game_state) -> str:
 
       document.getElementById('panel-content').innerHTML = `
         <h2 style="color:${{d.color}}">${{d.name}}</h2>
-        <div style="color:#94a3b8; margin-bottom:12px;">${{d.continent}}</div>
+        <div style="color:#94a3b8; margin-bottom:12px;">${{d.continent}} -- Turn ${{currentTurn}}</div>
         <div class="stat-row"><span class="stat-label">Treasury</span><span>${{d.treasury}}</span></div>
         <div class="stat-row"><span class="stat-label">Population</span><span>${{d.population}}</span></div>
         <div class="stat-row"><span class="stat-label">Tax rate</span><span>${{d.tax_rate}}</span></div>
@@ -400,7 +417,56 @@ def render_map_html(game_state) -> str:
 
     function closePanel() {{
       document.getElementById('kingdom-panel').classList.remove('open');
+      openKingdomId = null;
     }}
+
+    function renderBottomPanels() {{
+      const turnData = ALL_TURNS[currentTurn];
+
+      const conf = turnData.conference || [];
+      document.getElementById('conference-content').innerHTML = conf.length
+        ? conf.map(m => `<div class="msg"><b style="color:${{KINGDOM_COLORS[m.from] || '#fff'}}">${{m.name}}:</b> ${{m.message}}</div>`).join('')
+        : '<div class="empty">No public messages this turn.</div>';
+
+      const secrets = turnData.secret_meetings || {{}};
+      const secretKeys = Object.keys(secrets);
+      document.getElementById('secret-content').innerHTML = secretKeys.length
+        ? secretKeys.map(pairKey => {{
+            const ids = pairKey.split('|');
+            const names = ids.map(i => (turnData.kingdoms[i] || {{}}).name || i);
+            const exchange = secrets[pairKey];
+            const msgsHtml = exchange.map(m => {{
+              const speakerName = (turnData.kingdoms[m.from] || {{}}).name || m.from;
+              return `<div class="msg"><b>${{speakerName}}:</b> ${{m.message}}</div>`;
+            }}).join('');
+            return `<div class="secret-block">
+                      <div class="secret-title">[SECRET] ${{names[0]}} &lt;-&gt; ${{names[1]}} (hidden from other kingdoms)</div>
+                      ${{msgsHtml}}
+                    </div>`;
+          }}).join('')
+        : '<div class="empty">No secret meetings this turn.</div>';
+
+      const islands = turnData.islands || {{}};
+      document.getElementById('islands-bar').innerHTML = '<b>Unclaimed / Contested Islands:</b> ' +
+        Object.entries(ISLAND_NAMES).map(([id, name]) => {{
+          const controller = islands[id];
+          const color = controller ? (KINGDOM_COLORS[controller] || '#475569') : '#475569';
+          const label = controller && turnData.kingdoms[controller] ? `${{name}} (${{turnData.kingdoms[controller].name}})` : name;
+          return `<span class="island-chip" style="border-color:${{color}}">${{label}}</span>`;
+        }}).join('');
+    }}
+
+    function showTurn(t) {{
+      currentTurn = String(t);
+      document.getElementById('page-title').textContent = `Kingdoms AI -- Turn ${{currentTurn}} (God View)`;
+      document.querySelectorAll('.turn-btn').forEach(btn => {{
+        btn.classList.toggle('active', btn.dataset.turn === currentTurn);
+      }});
+      renderBottomPanels();
+      if (openKingdomId) showKingdom(openKingdomId);
+    }}
+
+    showTurn(currentTurn);
   </script>
 </body>
 </html>"""

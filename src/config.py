@@ -87,7 +87,7 @@ KINGDOMS = {
             "An empire-builder in the mold of Napoleon and Alexander: relentlessly "
             "expansionist, decisive, and opportunistic, but always in service of a "
             "long-range strategic vision rather than impulsive aggression. Prioritizes "
-            "outpacing every rival technologically -- pursues and funds every available "
+            "outpacing every rival technologically, Space race, build helicarriers, advanced missiles, -- pursues and funds every available "
             "invention, especially frontier tech (rocketry, space) -- while building "
             "the economic and military base to project power outward. Sees the empire's "
             "growth as inevitable, not optional: consolidate, industrialize, then expand, "
@@ -117,5 +117,5 @@ MAP_RNG_SEED = 42  # change this for a different randomized resource layout each
 PHASES = ["economy_tick", "private_planning", "conference", "secret_meetings", "resolution"]
 
 # Diplomacy limits (to stop context/token blowup, not a "real" game rule)
-MAX_CONFERENCE_MESSAGES_PER_KINGDOM_PER_TURN = 2
-MAX_SECRET_MEETINGS_PER_TURN = 3
+MAX_CONFERENCE_MESSAGES_PER_KINGDOM_PER_TURN = 5
+MAX_SECRET_MEETINGS_PER_TURN = 5

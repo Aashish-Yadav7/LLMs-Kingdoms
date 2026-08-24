@@ -87,14 +87,25 @@ class MockAgent:
 
 def main():
     import argparse
+    from pathlib import Path as _Path
     parser = argparse.ArgumentParser(description="Run a mock (no-API) playthrough to test the engine.")
-    parser.add_argument("--turns", type=int, default=10, help="How many turns to simulate (default 10, minimum 6 to see the scripted invasion play out)")
+    parser.add_argument("--turns", type=int, default=10, help="How many MORE turns to play from wherever the game currently is")
+    parser.add_argument("--new", action="store_true", help="Force a brand new game even if a save already exists")
     args = parser.parse_args()
 
     print("=== Kingdoms AI: mock playthrough (no API calls) ===\n")
-    game_state = GameState.new_game()
 
-    print("Starting kingdoms:")
+    existing_saves = sorted(_Path("data").glob("save_turn_*.json"),
+                             key=lambda p: int(p.stem.split("_")[-1])) if _Path("data").exists() else []
+    if args.new or not existing_saves:
+        game_state = GameState.new_game()
+        print("Starting a new game." if not existing_saves else "Starting a NEW game (--new was passed, ignoring existing save).")
+    else:
+        game_state = GameState.load(str(existing_saves[-1]))
+        print(f"Resuming from {existing_saves[-1]}, currently at turn {game_state.turn}. "
+              f"Will play turns {game_state.turn + 1} through {game_state.turn + args.turns}.")
+
+    print("\nKingdoms:")
     for kid, k in game_state.kingdoms.items():
         total_res = sum(k.resources.values())
         print(f"  {kid:12s} | {k.name:22s} | continent={k.home_continent:12s} | "
@@ -104,18 +115,16 @@ def main():
     agents = {kid: MockAgent(kid, game_state) for kid in game_state.kingdoms}
 
     for turn in range(args.turns):
-        print(f"--- Running turn {turn + 1}/{args.turns} ---")
+        print(f"--- Running turn {game_state.turn + 1} ---")
         run_turn(game_state, agents, log_dir="logs")
         save_path = f"data/save_turn_{game_state.turn}.json"
         game_state.save(save_path)
         print(f"  saved -> {save_path}")
-        print(f"  log   -> logs/turn_{game_state.turn}.md")
-        print(f"  map   -> maps/turn_{game_state.turn}.html (also maps/latest.html)\n")
+        print(f"  log   -> logs/turn_{game_state.turn}.md\n")
 
-    print("=== Done. Opening maps/latest.html in your browser... ===")
+    print("=== Done. Opening maps/game.html (all turns, one window) in your browser... ===")
     import webbrowser
-    from pathlib import Path as _Path
-    webbrowser.open(_Path("maps/latest.html").resolve().as_uri())
+    webbrowser.open(_Path("maps/game.html").resolve().as_uri())
 
 
 if __name__ == "__main__":

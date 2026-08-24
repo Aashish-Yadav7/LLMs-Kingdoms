@@ -389,13 +389,17 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
 
     game_state.history.append({"turn": game_state.turn, "summary": log_text[:2000]})
 
-    # God-view map: regenerated every turn so you can watch troop positions,
-    # ownership, and terrain evolve turn over turn.
-    from src.map_render import render_map_html
+    # God-view: one persistent file (maps/game.html) covering every turn
+    # ever played, including turns from earlier sessions if this game was
+    # resumed. Each turn saves a small JSON snapshot, then ALL snapshots
+    # found on disk get bundled into a single page with a turn selector --
+    # no more one HTML file per turn.
+    from src.map_render import save_turn_snapshot, load_all_snapshots, render_game_html
     map_dir = Path(log_dir).parent / "maps" if Path(log_dir).name == "logs" else Path("maps")
     map_dir.mkdir(parents=True, exist_ok=True)
-    map_html = render_map_html(game_state)
-    (map_dir / f"turn_{game_state.turn}.html").write_text(map_html, encoding="utf-8")
-    (map_dir / "latest.html").write_text(map_html, encoding="utf-8")  # always overwritten -- open this one to watch live
+    save_turn_snapshot(game_state, out_dir=map_dir / "turn_data")
+    all_snapshots = load_all_snapshots(snapshot_dir=map_dir / "turn_data")
+    game_html = render_game_html(all_snapshots)
+    (map_dir / "game.html").write_text(game_html, encoding="utf-8")
 
     return log_text
