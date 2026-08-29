@@ -1,5 +1,4 @@
 # Kingdoms AI
-
 Four (or more) kingdoms, each run by a different LLM, competing over a shared
 economy/military/tech simulation. The game engine (economy, tech tree, combat,
 resource limits) is deterministic Python code — the AIs only ever choose
