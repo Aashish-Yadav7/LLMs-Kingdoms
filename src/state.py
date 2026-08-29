@@ -192,3 +192,24 @@ class GameState:
 
         gs.unclaimed_islands = world_layout["unclaimed_islands"]
         return gs
+
+
+def find_latest_save(save_dir: str = "data") -> Path | None:
+    """Finds the highest-numbered save_turn_N.json in save_dir, or None if
+    there isn't one. Shared by main.py and tests/mock_playthrough.py so a
+    plain run automatically continues an existing game instead of starting
+    over from scratch every time."""
+    save_path = Path(save_dir)
+    if not save_path.exists():
+        return None
+    saves = list(save_path.glob("save_turn_*.json"))
+    if not saves:
+        return None
+
+    def turn_number(p: Path) -> int:
+        try:
+            return int(p.stem.split("_")[-1])
+        except ValueError:
+            return -1
+
+    return max(saves, key=turn_number)

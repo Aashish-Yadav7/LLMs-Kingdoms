@@ -134,7 +134,12 @@ class LLMAgent(BaseAgent):
                     model=model_id, messages=messages, temperature=0.8,
                 )
                 if candidate != self.model:
-                    print(f"[INFO] {self.kingdom_name}: '{self.model}' unavailable, used fallback '{candidate}' instead.")
+                    # Show the primary's real failure reason, not just "unavailable" --
+                    # this is exactly what was hidden before, making Ollama failures
+                    # impossible to diagnose from the console alone.
+                    primary_error = next((err for c, err in attempt_errors if c == self.model), None)
+                    reason = f" ({primary_error})" if primary_error else ""
+                    print(f"[INFO] {self.kingdom_name}: '{self.model}' unavailable{reason}, used fallback '{candidate}' instead.")
                 return _extract_json(response.choices[0].message.content)
             except Exception as e:
                 attempt_errors.append((candidate, e))
