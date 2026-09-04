@@ -14,6 +14,17 @@ TECH_TREE = {
         "cost": 0, "research_turns": 0, "prereqs": [],
         "unlocks": ["can build: farms, roads, basic factories"],
     },
+    "basic_navigation": {
+        "cost": 30_000_000_000, "research_turns": 2, "prereqs": ["basic_industry"],
+        "unlocks": [
+            "enables exploration -- without this, a kingdom has no idea any other "
+            "kingdom exists, and cannot speak in conference, request secret "
+            "meetings, or be discovered by anyone else. Every kingdom starts "
+            "completely isolated; this is the first step out of that isolation, "
+            "mirroring how medieval societies only learned of distant peoples "
+            "once they had the seafaring means to go looking."
+        ],
+    },
     "combustion_engines": {
         "cost": 50_000_000_000, "research_turns": 2, "prereqs": ["basic_industry"],
         "unlocks": ["can build: trucks, basic artillery"],

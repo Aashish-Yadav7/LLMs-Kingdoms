@@ -41,6 +41,29 @@ class Kingdom:
     custom_researching: dict | None = None  # {"name":..., "description":..., "category":..., "cost":..., "turns_needed":..., "progress":...}
     custom_projects: list = field(default_factory=list)  # completed custom inventions: [{"name", "description", "category", "cost", "power_rating"}]
 
+    # --- Discovery (fog of war) ---
+    # Every kingdom starts knowing NO ONE exists but itself -- not even that
+    # other kingdoms are out there. Only after unlocking "basic_navigation"
+    # can a kingdom start discovering others (see economy.run_discovery_tick).
+    # A kingdom that hasn't discovered another cannot see it, speak to it in
+    # conference, or be seen/spoken to by it -- true mutual fog of war.
+    known_kingdoms: set = field(default_factory=set)  # kingdom ids this kingdom has discovered
+
+    # --- Morale (distinct from `stability`) ---
+    # `stability` is internal political calm; `morale` is the army's actual
+    # fighting spirit/patriotism, and is what combat power scales with. A
+    # smaller, high-morale force (defending home soil, high public support)
+    # can beat a larger, low-morale one (far from home, losing streak,
+    # unpopular war) -- matching how real militarily-outnumbered defenders
+    # have repeatedly won historically. Range 0-150; 100 is baseline.
+    morale: float = 100.0
+
+    # --- Colonization ---
+    # province_id -> {"colonizer": kid, "since_turn": N} for provinces this
+    # kingdom has colonized that belong to ANOTHER kingdom's home continent.
+    # Tribute is extracted from these each economy tick (see economy.py).
+    colonies: dict = field(default_factory=dict)
+
     def public_summary(self) -> dict:
         """What OTHER kingdoms are allowed to see about this one.
         Resources are shown as an approximate number (real intel estimate,
@@ -133,19 +156,30 @@ class GameState:
     secret_meeting_log: dict = field(default_factory=dict)  # pair_key -> list of messages
     history: list = field(default_factory=list)  # turn summaries for narrative continuity
     unclaimed_islands: dict = field(default_factory=dict)  # island_id -> {resources, controlled_by, ...}
+    turn_reasoning: dict = field(default_factory=dict)  # kingdom_id -> reasoning string, THIS turn only (spectator-only view of AI thinking)
+    # province_id -> kingdom_id -- the REAL, mutable owner of every province.
+    # Starts matching data/map.json's static continent owners, but can change
+    # through colonization. Combat, colonization, and the map viewer all read
+    # ownership from here, never from map.json directly, once the game starts.
+    province_owners: dict = field(default_factory=dict)
 
     def save(self, path: str):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         data = {
             "turn": self.turn,
             "kingdoms": {
-                kid: {**asdict(k), "unlocked_tech": sorted(k.unlocked_tech)}
+                kid: {
+                    **asdict(k),
+                    "unlocked_tech": sorted(k.unlocked_tech),
+                    "known_kingdoms": sorted(k.known_kingdoms),
+                }
                 for kid, k in self.kingdoms.items()
             },
             "conference_log": self.conference_log,
             "secret_meeting_log": self.secret_meeting_log,
             "history": self.history,
             "unclaimed_islands": self.unclaimed_islands,
+            "province_owners": self.province_owners,
         }
         Path(path).write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -156,11 +190,13 @@ class GameState:
         for kid, kdata in data["kingdoms"].items():
             kdata = dict(kdata)
             kdata["unlocked_tech"] = set(kdata["unlocked_tech"])
+            kdata["known_kingdoms"] = set(kdata.get("known_kingdoms", []))
             gs.kingdoms[kid] = Kingdom(**kdata)
         gs.conference_log = data.get("conference_log", [])
         gs.secret_meeting_log = data.get("secret_meeting_log", {})
         gs.history = data.get("history", [])
         gs.unclaimed_islands = data.get("unclaimed_islands", {})
+        gs.province_owners = data.get("province_owners", {})
         return gs
 
     @classmethod
@@ -191,6 +227,18 @@ class GameState:
             gs.kingdoms[kid] = kingdom
 
         gs.unclaimed_islands = world_layout["unclaimed_islands"]
+
+        # Province ownership starts matching each kingdom's home continent,
+        # but is now a mutable, per-game fact (not read from map.json at
+        # runtime) so colonization can actually change hands.
+        import json as _json
+        from pathlib import Path as _Path
+        world = _json.loads((_Path(__file__).parent.parent / "data" / "map.json").read_text())
+        for cont_id, cont in world["continents"].items():
+            owner_kid = cont["owner"]
+            for prov in cont["provinces"]:
+                gs.province_owners[prov["id"]] = owner_kid
+
         return gs
 
 

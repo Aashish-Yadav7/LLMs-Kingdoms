@@ -92,6 +92,7 @@ def _build_kingdom_data(game_state, world: dict) -> dict:
             "population": f"{k.population:,}",
             "tax_rate": f"{k.tax_rate:.0%}",
             "stability": f"{k.stability:.0f}/100",
+            "morale": f"{k.morale:.0f}/150",
             "total_resources": f"{sum(k.resources.values()):,}",
             "resources": k.resources,
             "unlocked_tech": sorted(k.unlocked_tech),
@@ -107,6 +108,12 @@ def _build_kingdom_data(game_state, world: dict) -> dict:
             ] or ["(none yet)"],
             "alliances": k.alliances or ["(none)"],
             "at_war_with": k.at_war_with or ["(none)"],
+            "known_kingdoms": sorted(k.known_kingdoms) or ["(hasn't discovered anyone yet)"],
+            "colonies": [
+                f"{prov_id} (from {game_state.kingdoms[info['from_kingdom']].name if info.get('from_kingdom') in game_state.kingdoms else info.get('from_kingdom')}, since turn {info.get('since_turn')})"
+                for prov_id, info in k.colonies.items()
+            ] or ["(none)"],
+            "reasoning": game_state.turn_reasoning.get(kid, "(not recorded)"),
             "provinces": provinces,
             "forces_abroad": forces_abroad,
         }
@@ -389,11 +396,18 @@ def render_game_html(all_snapshots: dict) -> str:
         <div class="stat-row"><span class="stat-label">Population</span><span>${{d.population}}</span></div>
         <div class="stat-row"><span class="stat-label">Tax rate</span><span>${{d.tax_rate}}</span></div>
         <div class="stat-row"><span class="stat-label">Stability</span><span>${{d.stability}}</span></div>
+        <div class="stat-row"><span class="stat-label">Morale</span><span>${{d.morale}}</span></div>
         <div class="stat-row"><span class="stat-label">Total resources</span><span>${{d.total_resources}}</span></div>
         <div class="stat-row"><span class="stat-label">Researching</span><span>${{d.researching}}</span></div>
         <div class="stat-row"><span class="stat-label">Custom project in progress</span><span>${{d.custom_researching}}</span></div>
         <div class="stat-row"><span class="stat-label">Tech unlocked</span><span>${{d.unlocked_tech.length}}</span></div>
         <div class="stat-row"><span class="stat-label">At war with</span><span>${{d.at_war_with.join(', ')}}</span></div>
+        <h3 style="margin-top:16px; margin-bottom:4px; color:#38bdf8;">This Turn's Private Reasoning</h3>
+        <div style="font-size:12px; background:#0f172a; border:1px solid #334155; border-radius:6px; padding:8px; font-style:italic;">${{d.reasoning}}</div>
+        <h3 style="margin-top:16px; margin-bottom:4px;">Kingdoms Discovered</h3>
+        <div style="font-size:12px;">${{d.known_kingdoms.join(', ')}}</div>
+        <h3 style="margin-top:16px; margin-bottom:4px;">Colonies Held</h3>
+        <div style="font-size:12px;">${{d.colonies.join('<br>')}}</div>
         <h3 style="margin-top:16px; margin-bottom:4px;">Infrastructure</h3>
         <div>${{d.infrastructure.length ? d.infrastructure.map(renderInfraRow).join('') : '<span class="empty">no infrastructure tech unlocked yet</span>'}}</div>
         <h3 style="margin-top:16px; margin-bottom:4px;">Completed Custom Inventions</h3>

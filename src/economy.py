@@ -4,8 +4,9 @@ decisions. Kingdoms don't choose their tax rate via free text -- it's a bounded
 numeric action validated here, so nobody can invent infinite money.
 """
 
-from src.military import total_upkeep, total_military_power
+from src.military import total_upkeep, total_military_power, morale_drift_tick
 from src.tech_tree import TECH_TREE
+import random
 
 BASE_TAX_RATE_RANGE = (0.10, 0.45)  # kingdoms can set tax rate in this band
 GDP_PER_CAPITA = 45_000  # baseline annual economic output per person, arbitrary but fixed
@@ -112,6 +113,8 @@ def run_economy_tick(kingdom) -> dict:
             "units_lost": units_lost,
         }
 
+    morale_drift_tick(kingdom)
+
     return {
         "tax_rate": round(tax_rate, 3),
         "tax_income": round(tax_income, 2),
@@ -125,6 +128,54 @@ def run_economy_tick(kingdom) -> dict:
         "stability_after": round(kingdom.stability, 1),
         "riot": riot,
     }
+
+
+# --- Discovery ---
+DISCOVERY_CHANCE_PER_TURN = 0.30  # per turn, per undiscovered kingdom, once basic_navigation is unlocked
+
+
+def run_discovery_tick(kingdom, all_kingdom_ids: list) -> list:
+    """
+    Kingdoms start knowing NO ONE exists. Once "basic_navigation" is
+    unlocked, each turn there's a chance to discover one more kingdom they
+    haven't met yet -- mirroring how age-of-exploration societies gradually
+    found distant peoples rather than knowing the whole world map instantly.
+    Returns the list of kingdom ids newly discovered this turn (for logging).
+    """
+    if "basic_navigation" not in kingdom.unlocked_tech:
+        return []
+
+    undiscovered = [kid for kid in all_kingdom_ids if kid != kingdom.id and kid not in kingdom.known_kingdoms]
+    if not undiscovered:
+        return []
+
+    newly_discovered = []
+    for kid in undiscovered:
+        if random.random() < DISCOVERY_CHANCE_PER_TURN:
+            kingdom.known_kingdoms.add(kid)
+            newly_discovered.append(kid)
+    return newly_discovered
+
+
+# --- Colonization ---
+COLONY_TRIBUTE_RATE = 0.35  # fraction of a colonized province's per-capita tax value skimmed each turn
+
+
+def apply_colonial_tribute(colonizer_kingdom, colonized_kingdom, province_id: str, world_provinces_per_kingdom: dict) -> float:
+    """
+    Approximation, not a full per-province economy: a colonized kingdom's
+    total tax income is treated as split evenly across its provinces, and
+    the colonizer skims COLONY_TRIBUTE_RATE of that one province's implied
+    share directly into their own treasury each turn -- extractive
+    colonial economics, same shape as historical resource-extraction
+    colonization, without needing a full per-province GDP model.
+    """
+    num_provinces = world_provinces_per_kingdom.get(colonized_kingdom.id, 1)
+    per_province_share = (colonized_kingdom.population * 45_000 / 12) * colonized_kingdom.tax_rate / max(1, num_provinces)
+    tribute = per_province_share * COLONY_TRIBUTE_RATE
+    colonizer_kingdom.treasury += tribute
+    colonized_kingdom.treasury -= tribute
+    return tribute
 
 
 def apply_repair_investment(kingdom, amount: float) -> dict:
