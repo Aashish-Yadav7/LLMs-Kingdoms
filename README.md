@@ -123,3 +123,5 @@ image reference) with regions/provinces, and I'll wire `state.py` and
 `military.py` to use real region adjacency for movement/attacks instead of an
 abstract "kingdom vs kingdom" model. Tell me its format (list of regions +
 borders? image + coordinates?) and I'll adapt the loader.
+
+There are more updates to come development is in process
