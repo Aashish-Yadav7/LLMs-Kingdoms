@@ -126,3 +126,5 @@ borders? image + coordinates?) and I'll adapt the loader.
 
 There are more updates to come development is in process
 Anybody can contribute to this project
+Also any kind of ideas are also encouraged to make this idea more better
+
