@@ -118,11 +118,10 @@ you can read the diplomacy transcripts afterward.
 
 ## The map
 
-You mentioned you already have a map. Drop it as `data/map.json` (or a plain
-image reference) with regions/provinces, and I'll wire `state.py` and
-`military.py` to use real region adjacency for movement/attacks instead of an
-abstract "kingdom vs kingdom" model. Tell me its format (list of regions +
-borders? image + coordinates?) and I'll adapt the loader.
+The Map is designed by me through Google Gemini and the image was generated to use it in my one of the stories I was writing and thought of using it in this project. The image was created 6 months ago and this project didn't exist it was purely for the story.
+
+#
+
 
 There are more updates to come development is in process
 Anybody can contribute to this project
