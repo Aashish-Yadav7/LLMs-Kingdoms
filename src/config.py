@@ -40,7 +40,7 @@ PLAYER_LLM_MODEL = os.environ.get("PLAYER_LLM_MODEL", DEFAULT_MODEL)
 
 KINGDOMS = {
     "north": {
-        "name": "Kingdom of the North",
+        "name": "Varelia",
         "model": NORTH_MODEL,
         "personality": (
             "Pragmatic industrial strategist. Favors steady economic growth, "
@@ -48,7 +48,7 @@ KINGDOMS = {
         ),
     },
     "east": {
-        "name": "Eastern Dominion",
+        "name": "Elyndra",
         "model": EAST_MODEL,
         "personality": (
             "Opportunistic and adaptive. Watches other kingdoms closely, quick to "
@@ -56,7 +56,7 @@ KINGDOMS = {
         ),
     },
     "south": {
-        "name": "Southern Republic",
+        "name": "Sundara",
         "model": SOUTH_MODEL,
         "personality": (
             "Diplomacy-first. Prefers trade deals, research cooperation, and "
@@ -64,7 +64,7 @@ KINGDOMS = {
         ),
     },
     "west": {
-        "name": "Western Alliance",
+        "name": "Atlantia",
         "model": WEST_MODEL,
         "personality": (
             "Defensive and cautious. Prioritizes food security, population "
@@ -81,7 +81,7 @@ KINGDOMS = {
     # (intel, research speed, tech head start) -- none of which are ever
     # mentioned to the other four kingdoms' prompts.
     "player_llm": {
-        "name": "The Frozen Reach",
+        "name": "Shenghai",
         "model": PLAYER_LLM_MODEL,
         "personality": (
             "An empire-builder in the mold of Napoleon and Alexander: relentlessly "

@@ -13,7 +13,7 @@ from src.economy import (
 )
 from src.military import UNIT_TYPES, can_build_unit, resolve_combat, apply_post_combat_morale
 from src.tech_tree import TECH_TREE, can_research, get_available_techs
-from src.diplomacy import run_conference, run_secret_meetings
+from src.diplomacy import run_conference, run_secret_meetings, check_ifs_formation
 from src.agents.llm_agent import LLMAgent
 from src.map import (
     capital_province, continent_province_ids,
@@ -107,6 +107,27 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
             f"Kingdoms you have discovered so far: {sorted(kingdom.known_kingdoms) or '(none yet)'}\n\n"
         )
 
+        all_kingdom_ids = set(game_state.kingdoms.keys())
+        has_full_discovery = kingdom.known_kingdoms >= (all_kingdom_ids - {kid})
+        if game_state.ifs_formed:
+            ifs_note = "The International Federation of States (IFS) already exists and holds regular sessions. Your 'vote_for_ifs' field has no further effect.\n\n"
+        elif has_full_discovery:
+            ifs_note = (
+                "You have now discovered every other kingdom in the world. The IFS -- a "
+                "shared international body -- can only form once EVERY kingdom with full "
+                "discovery votes to form it. Set 'vote_for_ifs' to true if you support "
+                "creating it, false if you don't. Until it forms (unanimous agreement), "
+                "there is no shared public forum -- only private, bilateral contact via "
+                "secret meetings with kingdoms you've discovered.\n\n"
+            )
+        else:
+            ifs_note = (
+                "No shared international body exists yet, and won't until every kingdom "
+                "has discovered every other kingdom. For now, all diplomacy happens "
+                "through private, bilateral secret meetings with kingdoms you've "
+                "personally discovered.\n\n"
+            )
+
         prompt = (
             f"Turn {game_state.turn}. Your private state:\n{kingdom.private_summary()}\n\n"
             f"Your current stability: {kingdom.stability}/100. Tax rates above 30% erode stability "
@@ -118,6 +139,7 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
             "one at low morale. Morale rises with victories and high stability, falls with "
             "defeats and prolonged wars.\n\n"
             f"{navigation_note}"
+            f"{ifs_note}"
             f"Other kingdoms you know about (info available to you):\n{others}\n\n"
             f"Techs you could start researching now: {available_techs}\n"
             f"Unit types you can currently build: {buildable_units}\n"
@@ -163,6 +185,7 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
             '"proposed_cost": number, "proposed_turns": int} or null, '
             '"colonize_province": "province_id or null", '
             '"secret_meeting_request": "kingdom_id or null", '
+            '"vote_for_ifs": true/false, '
             '"declare_war_on": "kingdom_id or null", '
             '"reasoning": "short private reasoning, 1-2 sentences"}'
         )
@@ -176,15 +199,29 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
         if decision.get("secret_meeting_request"):
             secret_requests[kid] = [decision["secret_meeting_request"]]
 
-    # 3. Public conference
+    # 2.5. Check whether the IFS forms this turn (requires unanimous
+    # agreement among kingdoms with full mutual discovery -- see
+    # diplomacy.check_ifs_formation for the exact rule)
+    ifs_formed_this_turn = check_ifs_formation(game_state, planned_actions)
+    if ifs_formed_this_turn:
+        log_lines.append(
+            "\n**[IFS FORMED]** Every kingdom has now discovered every other kingdom, "
+            "and all have voted to establish the International Federation of States. "
+            "A shared public forum now exists for the first time.\n"
+        )
+
+    # 3. Public conference (IFS floor) -- produces nothing until the IFS
+    # has actually formed; see diplomacy.run_conference
     log_lines.append("\n## Conference (Public)\n")
     transcript = run_conference(game_state, agents)
     if not transcript:
-        log_lines.append("_(no public messages this turn -- either no kingdom has discovered "
-                          "navigation yet, or nobody had anything to say)_")
+        if not game_state.ifs_formed:
+            log_lines.append("_(no public forum exists yet -- the IFS has not formed. "
+                              "Diplomacy so far is strictly bilateral; see Secret Meetings below.)_")
+        else:
+            log_lines.append("_(the IFS is in session, but no kingdom had anything to raise this turn)_")
     for msg in transcript:
-        voice_tag = "*(narrator)*" if msg.get("voice") == "narrator" else ""
-        log_lines.append(f"- **{msg['name']}** {voice_tag}: {msg['message']}")
+        log_lines.append(f"- **IFS Representative -- {msg['name']}**: {msg['message']}")
 
     # 4. Secret meetings
     log_lines.append("\n## Secret Meetings\n")

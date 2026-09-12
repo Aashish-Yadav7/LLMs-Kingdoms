@@ -157,6 +157,16 @@ class GameState:
     history: list = field(default_factory=list)  # turn summaries for narrative continuity
     unclaimed_islands: dict = field(default_factory=dict)  # island_id -> {resources, controlled_by, ...}
     turn_reasoning: dict = field(default_factory=dict)  # kingdom_id -> reasoning string, THIS turn only (spectator-only view of AI thinking)
+
+    # --- IFS (International Federation of States) formation ---
+    # The IFS does not exist from turn one. It forms only once every kingdom
+    # has discovered every other kingdom (full mutual contact) AND every
+    # kingdom with full discovery has voted to form it. Before that point,
+    # there is no shared public conference -- only bilateral contact between
+    # kingdoms that have discovered each other (see run_secret_meetings,
+    # which already implements exactly that bilateral shape).
+    ifs_formed: bool = False
+    ifs_votes: set = field(default_factory=set)  # kingdom ids that have voted yes so far
     # province_id -> kingdom_id -- the REAL, mutable owner of every province.
     # Starts matching data/map.json's static continent owners, but can change
     # through colonization. Combat, colonization, and the map viewer all read
@@ -180,6 +190,8 @@ class GameState:
             "history": self.history,
             "unclaimed_islands": self.unclaimed_islands,
             "province_owners": self.province_owners,
+            "ifs_formed": self.ifs_formed,
+            "ifs_votes": sorted(self.ifs_votes),
         }
         Path(path).write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -197,6 +209,8 @@ class GameState:
         gs.history = data.get("history", [])
         gs.unclaimed_islands = data.get("unclaimed_islands", {})
         gs.province_owners = data.get("province_owners", {})
+        gs.ifs_formed = data.get("ifs_formed", False)
+        gs.ifs_votes = set(data.get("ifs_votes", []))
         return gs
 
     @classmethod

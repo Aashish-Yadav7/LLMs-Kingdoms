@@ -54,11 +54,11 @@ class MockAgent:
         self.game_state = game_state
 
     def decide(self, prompt, schema_hint):
-        if "SECRET meeting" in prompt:
+        if "Private meeting with" in prompt:
             return {"message": f"({self.kid}) proposing a trade route between our kingdoms."}
-        if "secret, private meeting" in prompt:
+        if "has requested a private meeting" in prompt:
             return {"accept": random.random() < 0.6}
-        if "public conference" in prompt:
+        if "session of the International" in prompt:
             return {
                 "speak": random.random() < 0.4,
                 "message": f"Greetings from {self.kid}. We seek prosperity, not conflict.",
@@ -81,6 +81,7 @@ class MockAgent:
             "repair_investment": None,
             "custom_project": None,
             "colonize_province": None,
+            "vote_for_ifs": True,
             "secret_meeting_request": None,
             "declare_war_on": None,
             "reasoning": "mock agent test action",
