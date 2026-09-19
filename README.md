@@ -118,7 +118,7 @@ you can read the diplomacy transcripts afterward.
 
 ## The map
 
-The Map is designed by me through Google Gemini and the image was generated to use it in my one of the stories I was writing and thought of using it in this project. The image was created 6 months ago and this project didn't exist it was purely for the story.
+The Map was designed by me but on paper it wasn't looking great so I used Google Gemini and the image was generated to use it in my one of the stories I was writing and thought of using it in this project so it looks better and like a real world . The image was created 6 months ago and this project didn't exist it was purely for the story part not for LLM kingdom.
 
 #
 
