@@ -108,7 +108,7 @@ def _build_kingdom_data(game_state, world: dict) -> dict:
             ] or ["(none yet)"],
             "alliances": k.alliances or ["(none)"],
             "at_war_with": k.at_war_with or ["(none)"],
-            "known_kingdoms": sorted(k.known_kingdoms) or ["(hasn't discovered anyone yet)"],
+            "known_kingdoms": [game_state.kingdoms[oid].name for oid in sorted(k.known_kingdoms) if oid in game_state.kingdoms] or ["(hasn't discovered anyone yet)"],
             "colonies": [
                 f"{prov_id} (from {game_state.kingdoms[info['from_kingdom']].name if info.get('from_kingdom') in game_state.kingdoms else info.get('from_kingdom')}, since turn {info.get('since_turn')})"
                 for prov_id, info in k.colonies.items()

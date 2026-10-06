@@ -9,7 +9,7 @@ from pathlib import Path
 
 from src.economy import (
     run_economy_tick, research_tick, apply_repair_investment,
-    run_discovery_tick, apply_colonial_tribute,
+    send_expedition, advance_expeditions, apply_colonial_tribute,
 )
 from src.military import UNIT_TYPES, can_build_unit, resolve_combat, apply_post_combat_morale
 from src.tech_tree import TECH_TREE, can_research, get_available_techs
@@ -31,6 +31,7 @@ def build_agents(game_state) -> dict:
 def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
     game_state.turn += 1
     log_lines = [f"# Turn {game_state.turn}\n"]
+    kingdom_logs = {kid: [f"## Turn {game_state.turn}"] for kid in game_state.kingdoms}
 
     provinces_per_kingdom = {
         kid: len(continent_province_ids(k.home_continent))
@@ -42,42 +43,50 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
     for kid, kingdom in game_state.kingdoms.items():
         summary = run_economy_tick(kingdom)
         research_summary = research_tick(kingdom)
-        log_lines.append(
-            f"- **{kingdom.name}**: treasury ${summary['treasury_after']:,.0f}, "
-            f"pop {summary['population_after']:,}, "
-            f"tax income ${summary['tax_income']:,.0f}, "
-            f"upkeep ${summary['upkeep_cost']:,.0f}, "
-            f"stability {summary['stability_after']}/100, "
-            f"morale {kingdom.morale:.0f}/150"
+        econ_line = (
+            f"treasury ${summary['treasury_after']:,.0f}, pop {summary['population_after']:,}, "
+            f"tax income ${summary['tax_income']:,.0f}, upkeep ${summary['upkeep_cost']:,.0f}, "
+            f"stability {summary['stability_after']}/100, morale {kingdom.morale:.0f}/150"
             + (" -- FOOD SHORTAGE" if summary["starving"] else "")
         )
+        log_lines.append(f"- **{kingdom.name}**: {econ_line}")
+        kingdom_logs[kid].append(f"**Economy**: {econ_line}")
+
         if research_summary["status"] == "completed":
             log_lines.append(f"  - Research complete: **{research_summary['tech']}**")
+            kingdom_logs[kid].append(f"- Research complete: **{research_summary['tech']}**")
         if summary["riot"]:
             r = summary["riot"]
-            log_lines.append(
-                f"  - **RIOT** (tax rate too high for too long): lost {r['population_lost']:,} population, "
-                f"${r['treasury_damage']:,.0f} in property/infrastructure damage, "
-                f"units lost: {r['units_lost'] or 'none'}"
+            riot_line = (
+                f"**RIOT**: lost {r['population_lost']:,} population, "
+                f"${r['treasury_damage']:,.0f} in damage, units lost: {r['units_lost'] or 'none'}"
             )
+            log_lines.append(f"  - {riot_line}")
+            kingdom_logs[kid].append(f"- {riot_line}")
 
-        # Discovery -- isolated kingdoms only start finding others once
-        # basic_navigation is unlocked, and even then it's gradual, not instant.
-        newly_discovered = run_discovery_tick(kingdom, list(game_state.kingdoms.keys()))
-        if newly_discovered:
-            names = [game_state.kingdoms[k].name for k in newly_discovered]
-            log_lines.append(f"  - **Discovery**: made first contact with {', '.join(names)}")
+        for event in advance_expeditions(kingdom, list(game_state.kingdoms.keys())):
+            if event["type"] == "expedition_found":
+                line = "**Expedition**: sighted something -- turning back to report (not yet discovered)."
+            elif event["type"] == "expedition_returned":
+                line = f"**Expedition returns**: made contact with **{game_state.kingdoms[event['target']].name}** -- now known."
+            elif event["type"] == "expedition_failed":
+                line = "**Expedition failed**: found nothing, turned back empty-handed."
+            elif event["type"] == "expedition_recalled":
+                line = "**Expedition recalled**: every kingdom is already known."
+            else:
+                continue
+            log_lines.append(f"  - {line}")
+            kingdom_logs[kid].append(f"- {line}")
 
-        # Colonial tribute -- any provinces this kingdom colonizes elsewhere
-        # extract a cut of that province's economy every turn, automatically.
         for prov_id, colony_info in list(kingdom.colonies.items()):
             original_owner = game_state.kingdoms.get(colony_info.get("from_kingdom"))
             if not original_owner:
                 continue
             tribute = apply_colonial_tribute(kingdom, original_owner, prov_id, provinces_per_kingdom)
-            log_lines.append(
-                f"  - Colonial tribute from {prov_id} ({original_owner.name}): +${tribute:,.0f}"
-            )
+            tribute_line = f"Colonial tribute from {prov_id} ({original_owner.name}): +${tribute:,.0f}"
+            log_lines.append(f"  - {tribute_line}")
+            kingdom_logs[kid].append(f"- {tribute_line}")
+            kingdom_logs[colony_info.get("from_kingdom")].append(f"- Paid colonial tribute to {kingdom.name}: -${tribute:,.0f}")
 
     # 2. Private planning: each kingdom decides its economic/military/research
     #    action, plus who (if anyone) it wants a secret meeting with.
@@ -101,11 +110,29 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
 
         navigation_note = (
             "You have NOT researched basic_navigation yet -- your kingdom doesn't "
-            "know any other kingdom exists. You cannot speak in conference or "
-            "request secret meetings until you research it.\n\n"
+            "know any other kingdom exists, and cannot send expeditions, speak in "
+            "conference, or request secret meetings until you research it.\n\n"
             if "basic_navigation" not in kingdom.unlocked_tech else
-            f"Kingdoms you have discovered so far: {sorted(kingdom.known_kingdoms) or '(none yet)'}\n\n"
+            f"Kingdoms you have discovered so far: {[game_state.kingdoms[oid].name for oid in sorted(kingdom.known_kingdoms) if oid in game_state.kingdoms] or '(none yet)'}\n\n"
         )
+
+        expedition_note = ""
+        if "basic_navigation" in kingdom.unlocked_tech:
+            if kingdom.expeditions:
+                exp = kingdom.expeditions[0]
+                expedition_note = (
+                    f"You have an expedition currently {exp['phase']} (turn {exp['turns_elapsed']} "
+                    "of that phase). You cannot send another until it's done. Discovery is NOT "
+                    "automatic -- nothing changes until this expedition makes it home.\n\n"
+                )
+            else:
+                expedition_note = (
+                    "You have no expedition active. This is the ONLY way to discover another "
+                    "kingdom. Set 'send_expedition' to true to send one (costs $80B immediately). "
+                    "It travels for several turns with no guarantee of finding anything, and "
+                    "even if it finds a kingdom, it still has to sail home and report before you "
+                    "know -- not instant. Real risk it finds nothing and the cost isn't refunded.\n\n"
+                )
 
         all_kingdom_ids = set(game_state.kingdoms.keys())
         has_full_discovery = kingdom.known_kingdoms >= (all_kingdom_ids - {kid})
@@ -139,6 +166,7 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
             "one at low morale. Morale rises with victories and high stability, falls with "
             "defeats and prolonged wars.\n\n"
             f"{navigation_note}"
+            f"{expedition_note}"
             f"{ifs_note}"
             f"Other kingdoms you know about (info available to you):\n{others}\n\n"
             f"Techs you could start researching now: {available_techs}\n"
@@ -186,6 +214,8 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
             '"colonize_province": "province_id or null", '
             '"secret_meeting_request": "kingdom_id or null", '
             '"vote_for_ifs": true/false, '
+            '"send_expedition": true/false, '
+            '"vote_for_ifs": true/false, '
             '"declare_war_on": "kingdom_id or null", '
             '"reasoning": "short private reasoning, 1-2 sentences"}'
         )
@@ -195,6 +225,7 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
         reasoning = decision.get("reasoning")
         log_lines.append(f"- **{kingdom.name}**: {reasoning if reasoning else '_(no reasoning given)_'}")
         game_state.turn_reasoning[kid] = reasoning or "(no reasoning given)"
+        kingdom_logs[kid].append(f"**Reasoning**: {reasoning if reasoning else '(no reasoning given)'}")
 
         if decision.get("secret_meeting_request"):
             secret_requests[kid] = [decision["secret_meeting_request"]]
@@ -340,6 +371,14 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
         # province with NO defending forces from that province's actual
         # current owner. Ownership then transfers, and ongoing tribute
         # starts flowing (see economy.apply_colonial_tribute, step 1 above).
+        if decision.get("send_expedition"):
+            new_exp = send_expedition(kingdom)
+            if new_exp:
+                applied.append("sent an expedition into the unknown (-$80,000,000,000)")
+            else:
+                reason = "already has one active" if kingdom.expeditions else "can't afford it or lacks basic_navigation"
+                applied.append(f"(expedition request rejected -- {reason})")
+
         colonize_target = decision.get("colonize_province")
         if colonize_target and isinstance(colonize_target, str):
             target_owner = game_state.province_owners.get(colonize_target)
@@ -425,7 +464,9 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
                 game_state.kingdoms[target].at_war_with.append(kid)
                 applied.append(f"declared WAR on {game_state.kingdoms[target].name}")
 
-        log_lines.append(f"- **{kingdom.name}**: " + (", ".join(applied) if applied else "no action"))
+        resolution_text = ", ".join(applied) if applied else "no action"
+        log_lines.append(f"- **{kingdom.name}**: {resolution_text}")
+        kingdom_logs[kid].append(f"**Resolution**: {resolution_text}")
 
     # 6. Combat resolution -- fought province by province from actual troop
     # positions, factoring in morale on top of raw unit power (see
@@ -492,6 +533,14 @@ def run_turn(game_state, agents: dict, log_dir: str = "logs") -> str:
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     log_path = Path(log_dir) / f"turn_{game_state.turn}.md"
     log_path.write_text(log_text, encoding="utf-8")
+
+    kingdoms_log_dir = Path(log_dir) / "kingdoms"
+    kingdoms_log_dir.mkdir(parents=True, exist_ok=True)
+    for kid, lines in kingdom_logs.items():
+        safe_name = game_state.kingdoms[kid].name.replace(" ", "_")
+        kfile = kingdoms_log_dir / f"{safe_name}.md"
+        with open(kfile, "a", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n\n")
 
     game_state.history.append({"turn": game_state.turn, "summary": log_text[:2000]})
 

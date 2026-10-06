@@ -82,6 +82,7 @@ class MockAgent:
             "custom_project": None,
             "colonize_province": None,
             "vote_for_ifs": True,
+            "send_expedition": True,
             "secret_meeting_request": None,
             "declare_war_on": None,
             "reasoning": "mock agent test action",

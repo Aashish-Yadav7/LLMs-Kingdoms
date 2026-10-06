@@ -130,31 +130,62 @@ def run_economy_tick(kingdom) -> dict:
     }
 
 
-# --- Discovery ---
-DISCOVERY_CHANCE_PER_TURN = 0.30  # per turn, per undiscovered kingdom, once basic_navigation is unlocked
+# --- Expeditions (replaces the old automatic discovery roll) ---
+# Discovery is no longer a free background dice roll. A kingdom must
+# deliberately send an expedition -- a real, costed action -- which spends
+# several turns traveling into the unknown before it might find anything.
+# Even after finding another kingdom, the expedition still has to sail home
+# and report before the sending kingdom actually knows.
+EXPEDITION_COST = 80_000_000_000
+EXPEDITION_MIN_OUTBOUND_TURNS = 2
+EXPEDITION_MAX_OUTBOUND_TURNS = 7
+EXPEDITION_DISCOVERY_CHANCE_PER_TURN = 0.22
+EXPEDITION_RETURN_TURNS = 2
 
 
-def run_discovery_tick(kingdom, all_kingdom_ids: list) -> list:
-    """
-    Kingdoms start knowing NO ONE exists. Once "basic_navigation" is
-    unlocked, each turn there's a chance to discover one more kingdom they
-    haven't met yet -- mirroring how age-of-exploration societies gradually
-    found distant peoples rather than knowing the whole world map instantly.
-    Returns the list of kingdom ids newly discovered this turn (for logging).
-    """
+def send_expedition(kingdom):
     if "basic_navigation" not in kingdom.unlocked_tech:
-        return []
+        return None
+    if kingdom.expeditions:
+        return None
+    if kingdom.treasury < EXPEDITION_COST:
+        return None
+    kingdom.treasury -= EXPEDITION_COST
+    expedition = {"phase": "outbound", "turns_elapsed": 0, "found_kingdom": None}
+    kingdom.expeditions.append(expedition)
+    return expedition
 
-    undiscovered = [kid for kid in all_kingdom_ids if kid != kingdom.id and kid not in kingdom.known_kingdoms]
-    if not undiscovered:
-        return []
 
-    newly_discovered = []
-    for kid in undiscovered:
-        if random.random() < DISCOVERY_CHANCE_PER_TURN:
-            kingdom.known_kingdoms.add(kid)
-            newly_discovered.append(kid)
-    return newly_discovered
+def advance_expeditions(kingdom, all_kingdom_ids):
+    events = []
+    still_active = []
+    for exp in kingdom.expeditions:
+        exp["turns_elapsed"] += 1
+        if exp["phase"] == "outbound":
+            undiscovered = [k for k in all_kingdom_ids if k != kingdom.id and k not in kingdom.known_kingdoms]
+            if not undiscovered:
+                events.append({"type": "expedition_recalled"})
+                continue
+            found = (exp["turns_elapsed"] >= EXPEDITION_MIN_OUTBOUND_TURNS
+                     and random.random() < EXPEDITION_DISCOVERY_CHANCE_PER_TURN)
+            if found:
+                exp["found_kingdom"] = random.choice(undiscovered)
+                exp["phase"] = "returning"
+                exp["turns_elapsed"] = 0
+                events.append({"type": "expedition_found", "target": exp["found_kingdom"]})
+                still_active.append(exp)
+            elif exp["turns_elapsed"] >= EXPEDITION_MAX_OUTBOUND_TURNS:
+                events.append({"type": "expedition_failed"})
+            else:
+                still_active.append(exp)
+        elif exp["phase"] == "returning":
+            if exp["turns_elapsed"] >= EXPEDITION_RETURN_TURNS:
+                kingdom.known_kingdoms.add(exp["found_kingdom"])
+                events.append({"type": "expedition_returned", "target": exp["found_kingdom"]})
+            else:
+                still_active.append(exp)
+    kingdom.expeditions = still_active
+    return events
 
 
 # --- Colonization ---

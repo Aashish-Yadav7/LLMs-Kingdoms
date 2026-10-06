@@ -48,6 +48,7 @@ class Kingdom:
     # A kingdom that hasn't discovered another cannot see it, speak to it in
     # conference, or be seen/spoken to by it -- true mutual fog of war.
     known_kingdoms: set = field(default_factory=set)  # kingdom ids this kingdom has discovered
+    expeditions: list = field(default_factory=list)  # active expeditions searching for other kingdoms
 
     # --- Morale (distinct from `stability`) ---
     # `stability` is internal political calm; `morale` is the army's actual
